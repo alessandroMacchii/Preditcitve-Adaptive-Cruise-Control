@@ -1,0 +1,4 @@
+content/
+outputs/
+.claude/
+.venv/

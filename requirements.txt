@@ -1,0 +1,27 @@
+# Core data science
+pandas>=2.0
+numpy>=1.24
+pyarrow>=14.0          # per leggere i parquet
+
+# Visualization
+matplotlib>=3.7
+seaborn>=0.12
+
+# Machine Learning
+scikit-learn>=1.3
+xgboost>=2.0
+optuna>=3.4            # tuning bayesiano
+
+# HTTP per Open-Meteo Elevation API
+requests>=2.31
+truststore>=0.9          # verifica SSL via trust store del SO (proxy/antivirus aziendali)
+
+# Visualizzazione geografica
+folium>=0.15           # mappa interattiva (notebook 3)
+
+# Persistenza modelli
+joblib>=1.3
+
+# Jupyter (se non già installato nell'ambiente)
+jupyter>=1.0
+ipykernel>=6.25
