@@ -12,6 +12,10 @@ scikit-learn>=1.3
 xgboost>=2.0
 optuna>=3.4            # tuning bayesiano
 
+# Deep Learning (notebook 5 — autoencoder anomaly detection)
+keras>=3.0             # Keras 3 multi-backend
+torch>=2.0             # backend PyTorch (CPU) per Keras 3
+
 # HTTP per Open-Meteo Elevation API
 requests>=2.31
 truststore>=0.9          # verifica SSL via trust store del SO (proxy/antivirus aziendali)

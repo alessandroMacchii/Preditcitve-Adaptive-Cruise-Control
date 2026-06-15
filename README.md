@@ -1,52 +1,68 @@
-# Cruise Control Adattivo Predittivo — Progetto VED
+# ML per l'energia e il contesto di guida — Progetto VED
 
-Progetto di Machine Learning supervised + unsupervised basato sul Vehicle Energy Dataset (VED) dell'Università del Michigan.
+Progetto di Machine Learning **supervised + unsupervised** sul Vehicle Energy Dataset (VED)
+dell'Università del Michigan (~17,9M righe di telemetria OBD-II reale, Ann Arbor MI).
 
-## Struttura
+**Cosa dimostra.** Tre capacità utili a un **assistente di guida / cruise control adattivo**:
+1. **Consumo / eco-driving** — stimare il consumo per km in funzione del profilo di velocità
+   *anticipato* (modello supervised, NB2).
+2. **Contesto + stili di guida** — riconoscere tipologie di tratto e profili di guida, e confrontare
+   i powertrain ICE/HEV/PHEV (clustering, NB3).
+3. **Diagnostica** — rilevare anomalie di funzionamento (autoencoder, NB4).
+
+> **Nota di inquadramento.** L'idea di partenza era un ACC che sfrutta l'**orografia**. I dati hanno
+> mostrato che su VED la pendenza è un segnale debole (Ann Arbor quasi piatta + altitudine
+> quantizzata a ~111 m → slope nullo nel 92% delle righe, correlazione col consumo ~0). Il progetto
+> è stato reinquadrato: il segnale reale è il **profilo di velocità/traffico** anticipato; il terreno
+> resta documentato come *limite del dato*. Inoltre il MAF è un proxy di consumo valido **solo per
+> gli ICE** (gli ibridi vanno spesso in elettrico → MAF=0): il modello di consumo è quindi solo-ICE,
+> e i tre powertrain sono confrontati a parte. Dettagli in `project context/RELAZIONE_PROGETTO.md`.
+
+## Struttura (4 notebook)
 
 ```
-project_ved/
-├── 01_data_prep_and_enrichment.ipynb   # Caricamento, EDA, enrichment elevation, slope
-├── 02_supervised_maf_prediction.ipynb  # Modello supervised XGBoost per predire MAF
-├── 03_unsupervised_road_clustering.ipynb # K-Means per clusterizzare tratti stradali
-├── content/            # tutti i file parquet del VED (caricati ricorsivamente)
+├── 01_data_prep_and_enrichment.ipynb        # Caricamento, EDA, enrichment elevation/slope/accel
+├── 02_consumption_ecodriving.ipynb          # Consumo per km su segmenti ~250 m (solo ICE)
+├── 03_unsupervised_context_and_styles.ipynb # A) tratti stradali  B) stili di guida × powertrain
+├── 04_autoencoder_diagnostics.ipynb         # Anomaly detection (autoencoder Keras/PyTorch)
+├── content/                                 # parquet VED (caricati ricorsivamente)
 └── outputs/
-    ├── ved_enriched.parquet         # Output del notebook 1, input dei notebook 2 e 3
-    ├── elevation_cache.parquet      # Cache delle chiamate Open-Meteo (per non rifarle)
-    ├── xgb_maf_model.joblib         # Modello supervised finale
-    ├── road_segment_clusters.parquet # Segmenti con etichetta cluster
-    ├── cluster_profile.csv          # Profilo numerico dei cluster
-    ├── cluster_map_static.png       # Mappa statica
-    ├── cluster_map.html             # Mappa interattiva (folium)
-    └── supervised_results.csv       # Tabella comparativa modelli supervised
+    ├── ved_enriched.parquet                 # Output NB1, input di tutti gli altri
+    ├── elevation_cache.parquet              # Cache chiamate Open-Meteo
+    ├── consumption_model.joblib             # Modello consumo a segmento (NB2)
+    ├── road_segment_clusters.parquet        # Tratti con etichetta cluster (NB3)
+    ├── telemetry_autoencoder.keras          # Autoencoder diagnostica (NB4)
+    └── *.csv / *.png / *.html               # risultati e mappe
 ```
+
+## Documentazione (in `project context/`)
+
+- `RELAZIONE_PROGETTO.md` — panoramica per l'esame (dataset, criticità, scelte) con numeri reali.
+- `ANALISI_DATI_VED.md` — analisi esplorativa completa del dataset (EDA con numeri reali).
+- `FAQ_DATI_E_MODELLO.md` — spiegazioni semplici dei concetti (MAF, slope, fuel trim, map-only, ibridi…).
+- `FILE_DI_OUTPUT.md` — catalogo dei file in `outputs/` (cosa sono, da quale notebook).
+- `GUIDA_CELLE_NB02_NB04.md` — spiegazione cella-per-cella del modello di consumo e dell'autoencoder.
+- `STORIA_PROGETTO.md` — come si è arrivati al modello map-only.
+- `DISCUSSIONI_E_SVILUPPI.md` — architettura concettuale e idee future.
+- `STATE.md` — stato vivo della pipeline.
 
 ## Setup
 
 ```bash
-pip install pandas numpy matplotlib seaborn scikit-learn xgboost optuna pyarrow requests folium joblib
+pip install -r requirements.txt
 ```
 
-## Esecuzione
+Include anche `keras` + `torch` (CPU) per l'autoencoder (NB4).
 
-I notebook vanno eseguiti in ordine:
+## Esecuzione (in ordine)
 
-1. **Notebook 1** — Una sola volta. Produce `ved_enriched.parquet`.
-   - Tempo: ~5-10 min (incluse le chiamate API Open-Meteo)
-   - Output: dataset arricchito di ~17M righe
-2. **Notebook 2** — Modello supervised.
-   - Tempo: ~30-60 min (Optuna tuning incluso)
-3. **Notebook 3** — Clustering.
-   - Tempo: ~5-10 min
+1. **NB1** — una sola volta. Produce `ved_enriched.parquet` (~17,9M righe). ~5–10 min.
+2. **NB2** — consumo a segmento (solo ICE). Optuna leggero → pochi minuti.
+3. **NB3** — clustering tratti + stili di guida × powertrain. ~5–10 min.
+4. **NB4** — autoencoder. Training su CPU, pochi minuti.
 
-## Note importanti
+## Note
 
-- Il **notebook 1** chiama Open-Meteo Elevation API (gratuita, no API key). Mette in cache i risultati in `elevation_cache.parquet`: la seconda volta che esegui non rifa le chiamate.
-- Il **notebook 2** lavora su un sample del 30% dei trip (configurabile via `SAMPLE_FRAC`). Per il deliverable finale puoi alzare al 100% — ricorda che il tuning Optuna è la fase più lenta.
-- Il **notebook 3** richiede `folium` solo per la mappa interattiva. Se non installato, la mappa statica `.png` viene comunque generata.
-
-## Narrativa per la presentazione
-
-"I cruise control attuali mantengono una velocità fissa. Un cruise control *predittivo* — che conosce in anticipo l'orografia della strada — può ridurre il consumo modulando dinamicamente la velocità. In questo progetto ho costruito due modelli ML che insieme dimostrano questa idea su 17M punti di telemetria reale.
-
-Il **modello supervised** predice il consumo aria istantaneo (MAF) data lo stato veicolo + l'informazione look-ahead sulla strada. Il **modello unsupervised** classifica i tratti stradali in categorie di stile di guida ottimale (urbano, rettilineo veloce, salita). Insieme costituiscono la base di un cruise control adattivo intelligente."
+- Il NB1 chiama Open-Meteo Elevation API (gratuita, no key) e mette in cache i risultati.
+- Ambiente: `.venv` del progetto (`./.venv/Scripts/python.exe`), Windows.
+- Il NB4 imposta `KERAS_BACKEND=torch` prima dell'import di Keras 3.

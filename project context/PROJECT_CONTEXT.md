@@ -1,5 +1,10 @@
 # PROJECT_CONTEXT.md — Onboarding per sessioni Claude Code
 
+> ⚠️ **DOCUMENTO STORICO (superato il 2026-06-14).** Descrive la versione iniziale del progetto
+> (3 notebook, framing "ACC orografico", MAF istantaneo). **Non riflette lo stato attuale.** Per il
+> contesto corrente usa: `CLAUDE.md` (root) + `STATE.md` + `RELAZIONE_PROGETTO.md` +
+> `ANALISI_DATI_VED.md`. Tenuto solo come traccia di come è nato il progetto.
+
 > Leggere questo file all'inizio di ogni sessione. Lo stato corrente è in `STATE.md`.
 
 ## Utente
