@@ -1,14 +1,13 @@
-# Guida cella-per-cella — NB02 (consumo), NB03 (contesto/stili) e NB04 (autoencoder)
+# Guida cella-per-cella — NB02 (consumo) e NB03 (contesto/stili)
 
 > Documento di studio per la discussione d'esame. Per ogni **cella di codice** spiega *cosa fa* e
 > *perché* (le scelte). I numeri `[n]` sono l'indice reale della cella nel notebook (markdown
 > inclusi). Le celle markdown sono la narrativa già nel notebook e non vengono ripetute.
 >
 > Allineata ai notebook eseguiti: NB2 = consumo a segmento **solo ICE**, **solo XGBoost** (default +
-> tunato); NB3 = contesto stradale (Parte A) + stili di guida × powertrain (Parte B); NB4 =
-> autoencoder con **EngineType**. Le righe **"Risultato reale:"** riportano i numeri usciti dai run,
-> così leggendo col codice di fianco ritrovi a schermo gli stessi valori. Contesto:
-> `ANALISI_DATI_VED.md` (dati), `STATE.md` (stato).
+> tunato); NB3 = contesto stradale (Parte A) + stili di guida × powertrain (Parte B). Le righe
+> **"Risultato reale:"** riportano i numeri usciti dai run, così leggendo col codice di fianco
+> ritrovi a schermo gli stessi valori. Contesto: `ANALISI_DATI_VED.md` (dati), `STATE.md` (stato).
 
 ---
 
@@ -121,95 +120,7 @@ forte resta la feature importance, non questa demo.
 
 ---
 
-# Parte 2 — `04_autoencoder_diagnostics.ipynb`
-
-**In una frase:** un autoencoder impara a ricostruire la telemetria "normale"; ciò che ricostruisce
-male (errore alto) è un candidato **anomalia** (diagnostica / manutenzione predittiva).
-
-## `[2]` Setup
-**Cosa fa:** imposta `os.environ["KERAS_BACKEND"]="torch"` **prima** di importare keras; importa
-sklearn (StandardScaler, IsolationForest, PCA, split), fissa il seed.
-**Perché:** Keras 3 è multi-backend; il backend va scelto prima dell'import (stack del corso:
-Keras 3 + PyTorch).
-
-## `[4]` Dati e feature
-**Cosa fa:** definisce `AE_NUM` (9 segnali: velocità, accel, RPM, carico, MAF, OAT, slope, **2 fuel
-trim**), `SAMPLE_N=200_000`; carica quelle colonne + `EngineType`, droppa NaN, campiona.
-**Perché:** i **fuel trim** sono il cuore della diagnostica (valori grandi/persistenti = problemi).
-Qui RPM/Load sono **leciti**: descriviamo lo stato a posteriori, non prediciamo in anticipo. Si
-campiona perché i dati sono **ridondanti** (200k bastano a definire il "normale").
-
-## `[6]` Standardizzazione + one-hot EngineType + split
-**Cosa fa:** `StandardScaler` sulle numeriche, `EngineType` → one-hot, concatenati in `X`; split
-train/val 80/20.
-**Perché:** l'AE minimizza l'MSE: senza scaling le feature a range ampio (RPM, MAF) dominerebbero.
-**EngineType incluso** così l'AE impara il "normale" *per powertrain* (il motore-spento-in-marcia
-degli ibridi non viene scambiato per anomalia).
-
-## `[8]` Architettura dell'autoencoder
-**Cosa fa:** rete densa a clessidra (`… → 16 → 8 → 3 bottleneck → 8 → 16 → n`), ReLU, uscita lineare,
-Adam, loss MSE; stampa `summary()`.
-**Perché:** il **bottleneck a 3** forza la compressione (la rete deve tenere solo la struttura
-essenziale; un collo largo copierebbe l'input). Uscita lineare = ricostruiamo valori reali; MSE =
-naturale per dati continui ed è anche l'anomaly score.
-
-## `[10]` Training
-**Cosa fa:** `EarlyStopping(patience=5)`, fino a 50 epoche, batch 512; plotta la curva train/val.
-**Perché:** l'early stopping evita overfitting e ripristina i pesi migliori; la curva è il controllo
-visivo (train e val devono scendere insieme).
-**Risultato reale:** la loss scende pulita da ~0,61 a ~0,28, con train e val **appaiati** → niente
-overfitting.
-
-## `[12]` Errore di ricostruzione = anomaly score
-**Cosa fa:** MSE per riga (`recon_err`), soglia al **99° percentile** (top 1% = anomalie),
-distribuzione (log + zoom).
-**Perché:** errore alto = la rete non sa rappresentare quel punto con la struttura del normale. La
-soglia 1% è una **scelta operativa**, da dichiarare.
-**Risultato reale:** soglia (99° pct) = 2,411 → esattamente 2.000 anomalie (1,00%), per costruzione.
-
-## `[14]` Contributo per-feature
-**Cosa fa:** errore di ricostruzione per singola feature, media anomalie vs normali, rapporto.
-**Perché:** rende l'anomaly score **interpretabile**: dice *quale* segnale (fuel trim? combinazione
-RPM/carico?) rende anomalo il punto.
-**Risultato reale:** in cima `Short_Term_Fuel_Trim_Bank_1` (errore medio ~8,4× più alto sui punti
-anomali che sui normali) → coerente coi fuel trim estremi (fino a ~+90%).
-
-## `[16]` Confronto con Isolation Forest
-**Cosa fa:** `IsolationForest(contamination=0.01)` flagga il suo 1%; calcola intersezione e Jaccard
-con le anomalie dell'AE.
-**Perché:** metodo unsupervised **indipendente** → modo onesto di "validare" senza etichette.
-**Risultato reale:** Jaccard **0,070** (262 punti in comune). Da leggere bene: in assoluto è **basso**
-(i due metodi flaggano per lo più cose diverse), MA 262 concordi contro **~20 attesi a caso** (1%×1%×
-200k) = **~13× sopra il caso**. Lettura corretta da portare all'esame: i due metodi sono
-**complementari** (catturano anomalie di tipo diverso) e l'overlap non-casuale isola un **nucleo di
-anomalie ad alta confidenza**. Da **non** dire: "l'accordo valida il modello" — Jaccard 0,07 non lo
-sostiene.
-
-## `[18]` Ispezione dei casi più anomali
-**Cosa fa:** i 10 punti con errore massimo, valori reali + EngineType, vs la mediana dei normali.
-**Perché:** trasforma uno "score" in un'osservazione verificabile a occhio.
-
-## `[20]` Visualizzazione PCA
-**Cosa fa:** proietta in 2D (PCA) e colora normali vs anomalie.
-**Perché:** verifica visiva che gli anomali stiano ai margini della nuvola.
-
-## `[22]` Salvataggio
-**Cosa fa:** salva `telemetry_autoencoder.keras` e `anomaly_scores.parquet`.
-**Perché:** rende riusabile il rilevatore e documenta gli score.
-
-### Domande d'esame su NB4
-- *Perché un autoencoder e non una soglia?* → coglie anomalie **multivariate** (combinazioni), non
-  solo valori singoli fuori scala.
-- *A cosa serve il bottleneck?* → forza la compressione; senza, la rete copierebbe l'input.
-- *Come validi senza etichette?* → distribuzione errore, ispezione casi, e overlap **non-casuale**
-  (~13× il caso) con Isolation Forest. Attento: non è "accordo" pieno (Jaccard 0,07), ma un **nucleo
-  comune robusto** + metodi complementari.
-- *Perché RPM/Load qui sì e nel consumo no?* → qui si descrive a posteriori, non si predice in
-  anticipo: nessuna circolarità col caso d'uso ACC.
-
----
-
-# Parte 3 — `03_unsupervised_context_and_styles.ipynb`
+# Parte 2 — `03_unsupervised_context_and_styles.ipynb`
 
 **In una frase:** clustering **non supervisionato** in due parti — **A)** i *tratti stradali* di Ann
 Arbor in tipologie (urbano / scorrevole / veloce), **B)** i *guidatori* in stili di guida, con
@@ -371,5 +282,4 @@ HEV/PHEV quota di motore spento marcata e MAF~0 in decel → trazione elettrica 
 
 ## Come eseguirli
 Kernel: `.venv` del progetto. NB2: Optuna leggero → pochi minuti. NB3: clustering su CPU → pochi
-minuti (t-SNE è la parte più lenta). NB4: training AE su CPU → pochi minuti (Keras 3 + PyTorch già
-installati). Eseguire dopo che il NB1 ha prodotto `ved_enriched.parquet`.
+minuti (t-SNE è la parte più lenta). Eseguire dopo che il NB1 ha prodotto `ved_enriched.parquet`.

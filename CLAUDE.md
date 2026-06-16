@@ -5,11 +5,10 @@
 > mutevole) sta in `STATE.md`: **leggilo per primo**, e aggiornalo quando fai qualcosa.
 
 ## Cos'è il progetto
-ML supervised + unsupervised sul **Vehicle Energy Dataset (VED)** per dimostrare tre capacità
+ML supervised + unsupervised sul **Vehicle Energy Dataset (VED)** per dimostrare due capacità
 utili a un **assistente di guida / cruise control adattivo**: (1) stimare il **consumo** in
 funzione del profilo di velocità *anticipato* (eco-driving), (2) **riconoscere il contesto
-stradale** (tipologie di tratto), (3) **rilevare anomalie** di funzionamento (diagnostica).
-Progetto d'esame di Alex.
+stradale** (tipologie di tratto) e gli **stili di guida**. Progetto d'esame di Alex.
 
 > **Inquadramento (rivisto 2026-06-14).** L'idea iniziale era un ACC che sfrutta l'**orografia**.
 > Esplorando i dati la pendenza si è rivelata **debole** (Ann Arbor piatta + quantizzazione
@@ -19,7 +18,7 @@ Progetto d'esame di Alex.
 > alternativi valutati (OBD-II senza GPS, IMU) non risolvevano il problema → si resta su VED.
 > Storia e numeri in `RELAZIONE_PROGETTO.md`.
 
-## I 4 notebook (consolidati 2026-06-14)
+## I 3 notebook (consolidati 2026-06-14)
 1. `01_data_prep_and_enrichment.ipynb` — carica i parquet VED, EDA, arricchisce con altitudine
    (Open-Meteo) e calcola pendenza + accelerazione. Output: `outputs/ved_enriched.parquet`.
 2. `02_consumption_ecodriving.ipynb` — **consumo / eco-driving**: predice `maf_per_km` su segmenti
@@ -28,9 +27,6 @@ Progetto d'esame di Alex.
 3. `03_unsupervised_context_and_styles.ipynb` — **contesto + stili di guida**: Parte A clustering
    dei tratti stradali (K-Means/PCA/t-SNE/mappa); Parte B clustering dei **guidatori** (cinematica)
    con confronto **stile × powertrain** (chi-quadro) + confronto energetico ICE/HEV/PHEV.
-4. `04_autoencoder_diagnostics.ipynb` — **diagnostica**: autoencoder (Keras/PyTorch) per anomaly
-   detection sui fuel trim/sensori; include `EngineType` (il motore-spento-in-marcia degli ibridi
-   è normale, non anomalia). Confronto con Isolation Forest.
 
 > **I notebook nuovi non sono ancora stati eseguiti** (lo fa Alex).
 
@@ -69,10 +65,10 @@ dà R² più alto ma fa imparare una scorciatoia e azzera il ruolo della strada.
 - `ANALISI_DATI_VED.md` = EDA completa del dataset (numeri reali: schema, distribuzioni, correlazioni, powertrain).
 - `FAQ_DATI_E_MODELLO.md` = spiegazioni semplici (cos'è MAF/slope/fuel trim, map-only, ibridi, skew…) per lo studio.
 - `FILE_DI_OUTPUT.md` = cosa contiene ogni file in `outputs/` e quale notebook lo produce.
-- `GUIDA_CELLE_NB02_NB04.md` = spiegazione cella-per-cella di consumo (NB2) e autoencoder (NB4).
+- `GUIDA_CELLE_NB02_NB03.md` = spiegazione cella-per-cella di consumo (NB2) e contesto/stili (NB3).
 - `DISCUSSIONI_E_SVILUPPI.md` = architettura concettuale, perché NON integrare NB3→NB2 naïve
   (leakage), idee di sviluppo futuro.
-- `README.md` (in root) = setup utente, aggiornato al reframe e ai 4 notebook.
+- `README.md` (in root) = setup utente, aggiornato al reframe e ai 3 notebook.
 
 ## Convenzioni
 - Documentazione di stato in italiano.

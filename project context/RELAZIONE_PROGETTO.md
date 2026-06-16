@@ -6,7 +6,7 @@ vedi §1.)*
 > Documento unico per la **discussione d'esame**. Spiega: cos'è il progetto, il dataset (con
 > numeri reali esplorati), l'architettura, ogni notebook, le **criticità** e le **scelte** —
 > in modo da poterlo raccontare al prof. Per il dettaglio cella-per-cella dei notebook nuovi
-> vedi `GUIDA_CELLE_NB02_NB04.md`.
+> vedi `GUIDA_CELLE_NB02_NB03.md`.
 >
 > Tutti i numeri di questa relazione vengono da un'esplorazione reale di `ved_enriched.parquet`
 > (17,9M righe), non da stime.
@@ -16,8 +16,8 @@ vedi §1.)*
 ## 1. L'idea in una frase
 
 **Il progetto:** usare ML **supervised + unsupervised** su telemetria reale per dare a un
-assistente di guida / ACC tre capacità — **stimare il consumo** (eco-driving), **riconoscere il
-contesto stradale**, **rilevare anomalie** di funzionamento.
+assistente di guida / ACC due capacità — **stimare il consumo** (eco-driving) e **riconoscere il
+contesto stradale** e gli stili di guida.
 
 **Onestà subito (così non sembra "tirato").** L'idea di partenza era un ACC che sfrutta
 l'**orografia**: anticipo le salite → modulo la velocità → consumo meno. Esplorando i dati,
@@ -34,13 +34,12 @@ La catena concettuale di un ACC predittivo (chi fa cosa):
 2. **Valutatore di costo (NB2)** → dato uno scenario di guida, stima il **consumo**. È un
    *misuratore*, non il guidatore.
 3. **Riconoscitore di contesto + stili di guida (NB3)** → tipo di strada e profilo di guida.
-4. **Diagnostica (NB4)** → rileva stati **anomali** del veicolo (manutenzione predittiva).
-5. **Pianificatore** (fuori scope, futuro) → prova più profili di velocità, chiede il costo al
+4. **Pianificatore** (fuori scope, futuro) → prova più profili di velocità, chiede il costo al
    valutatore, sceglie il più economico. *Questo* decide "quanto accelerare".
 
 > Frase da usare all'esame: *"dalla mappa conosco pendenza e tipo di tratto (NB1+NB3); un
 > modello stima il consumo di ogni strategia di guida (NB2); un controllore sceglie la più
-> efficiente. In più, un autoencoder sorveglia lo stato di salute del veicolo (NB4)."*
+> efficiente."*
 
 ---
 
@@ -69,15 +68,15 @@ Telemetria OBD-II reale dell'Università del Michigan, area di **Ann Arbor (MI)*
 - **Velocità**: media 41,4 km/h, mediana 44; il 5° pct è 0 (molte righe a veicolo fermo).
 - **Accelerazione**: media ~0, std 3,9 km/h/s (clippata a [−15, +10]).
 - **Peso** (`Generalized_Weight`): 2500–6000, mediana 3500.
-- **Temperatura** (`OAT_DegC`): mediana 9 °C, range −40…+60 (gli estremi sono sospetti → candidati
-  anomalia per il NB4).
+- **Temperatura** (`OAT_DegC`): mediana 9 °C, range −40…+60 (gli estremi sono sospetti: outlier di
+  sensore).
 
 ### 2.3 Sampling irregolare — un vincolo del dato
 
 Il `dt` tra campioni consecutivi non è costante: **mediana 600 ms**, p99 2400 ms, ma **max
 ~7.444.700 ms (~2 ore!)**. Ci sono buchi di logging enormi. Conseguenze metodologiche:
 - l'accelerazione va calcolata su `dt` reale (non `diff()` semplice) — fatto nel NB1;
-- per integrare il consumo sul segmento (NB4) si **cappa il dt a 2 s**, altrimenti i buchi
+- per integrare il consumo sul segmento (NB2) si **cappa il dt a 2 s**, altrimenti i buchi
   sommerebbero "aria fantasma".
 
 ---
@@ -107,7 +106,7 @@ Il `dt` tra campioni consecutivi non è costante: **mediana 600 ms**, p99 2400 m
 > **Come raccontarlo al prof (trasformare il limite in metodo):** *"Lo slope istantaneo è
 > dominato da un artefatto di risoluzione: l'altitudine SRTM (~30 m) e la dedup a 111 m lo
 > rendono nullo dentro cella e spiky al bordo. Non è un bug del codice, è il limite della
-> sorgente. Per questo nel NB4 sono passato dal valore istantaneo al **dislivello cumulato sul
+> sorgente. Per questo nel NB2 sono passato dal valore istantaneo al **dislivello cumulato sul
 > segmento**, molto più robusto, e ho documentato il caso come limite del dato — su terreno
 > collinare la pendenza conterebbe."*
 
@@ -154,14 +153,6 @@ dimostrazione del fallimento senza), **Elbow + Silhouette**, **K-Means++**, heat
 **confronto energetico** (motore-spento-in-marcia: ICE 0%, HEV 21%, PHEV 24%; firma della **frenata
 rigenerativa**). È qui che "si tiene conto dei tre veicoli".
 
-### NB4 — `04_autoencoder_diagnostics.ipynb` (diagnostica)
-**Autoencoder** (Keras 3 / backend PyTorch, bottleneck 3): errore di ricostruzione = **anomalia**.
-Su 9 feature (velocità, accel, RPM, carico, MAF, OAT, slope, **2 fuel trim**) + **`EngineType`
-one-hot** (così il motore-spento degli ibridi non è scambiato per anomalia), 200k righe. Soglia 99°
-pct, contributo per-feature, confronto con **Isolation Forest**, ispezione casi, PCA.
-**Perché esiste:** copre l'**autoencoder** (argomento d'esame) e dà un caso d'uso reale
-(manutenzione predittiva). I **fuel trim** lo giustificano (range fino a +89,8%).
-
 ---
 
 ## 5. Le grandi decisioni metodologiche (e come difenderle)
@@ -179,7 +170,7 @@ pct, contributo per-feature, confronto con **Isolation Forest**, ispezione casi,
 | **Target `maf_per_km`** | misura l'efficienza, non la distanza banale. |
 | **NO integrazione naïve cluster→consumo** | il cluster contiene `maf_mean`/`rpm_mean` → sarebbe mean-target-encoding mascherato (leakage). Pilastri complementari. |
 | **Optuna invece di GridSearch** | TPE bayesiano: migliori soluzioni a parità di budget (costo = trial × fold × fit). |
-| **StandardScaler dentro la Pipeline** | obbligatorio per Ridge/Lasso e K-Means/PCA/autoencoder; nella Pipeline evita leakage (fit solo sul train). |
+| **StandardScaler dentro la Pipeline** | obbligatorio per K-Means/PCA (e per i modelli lineari); nella Pipeline evita leakage (fit solo sul train). |
 
 ### 5.1 Approfondimento: perché NON includere gli ibridi nel NB2 "tenendo conto del tempo in elettrico"
 
@@ -227,9 +218,10 @@ Il modello *hurdle* resta un buon **sviluppo futuro** se si dispone di un datase
 *(Nota: il NB2 è stato snellito a soli modelli XGBoost → la regolarizzazione L1/L2 e Random Forest
 non sono più nel progetto. Reintegrabili tenendo un Lasso se serve coprirli.)*
 **Unsupervised:** K-Means/K-Means++, elbow, silhouette, StandardScaler motivato, PCA con
-loadings, t-SNE, **autoencoder** (NB4), anomaly detection (Isolation Forest).
-→ Con l'autoencoder (NB4) l'unico grande argomento d'aula prima mancante è ora coperto. Resta
-fuori solo la **CNN** (Conv2D/MaxPooling): non c'è un caso d'uso a immagini in questo progetto.
+loadings, t-SNE.
+→ Restano **fuori dal progetto** il **deep learning** (autoencoder/anomaly detection — il NB4 di
+diagnostica è stato rimosso perché ortogonale al cuore eco-driving) e la **CNN**: argomenti
+studiati ma non applicati qui (nessun caso d'uso a immagini).
 
 ---
 
@@ -245,7 +237,6 @@ fuori solo la **CNN** (Conv2D/MaxPooling): non c'è un caso d'uso a immagini in 
 - Il **controfattuale eco/sport** (scaling uniforme ±10%) è la parte più debole: dà un "eco +4%"
   controintuitivo perché nei dati bassa velocità ↔ stop-and-go sono intrecciati. La prova forte è la
   **feature importance** (cosa guida il consumo), non quella demo.
-- L'autoencoder non ha **etichette di guasto** → validazione qualitativa, niente precision/recall.
 - Dati solo di Ann Arbor → non generalizzano automaticamente ad altre aree/veicoli.
 
 **Sviluppi futuri (coerenti col progetto):**
@@ -282,10 +273,6 @@ fuori solo la **CNN** (Conv2D/MaxPooling): non c'è un caso d'uso a immagini in 
   **stop-and-go** (feature #1), non la velocità grezza — rallentare può anzi aumentare il consumo/km.
 - *"Perché non hai unito cluster (NB3) e consumo (NB2)?"* → Il cluster codifica `maf_mean`/`rpm_mean`
   → leakage (target encoding mascherato). Pilastri complementari.
-- *"Perché RPM/Load nell'autoencoder (NB4) sì e nel consumo no?"* → L'AE *descrive* lo stato a
-  posteriori (anomaly detection), non *predice* in anticipo: nessuna circolarità col caso d'uso ACC.
-- *"L'autoencoder come lo validi senza etichette?"* → Qualitativamente: distribuzione errore,
-  ispezione dei casi estremi, **accordo con Isolation Forest** (metodo indipendente).
 
 ---
 
@@ -296,10 +283,9 @@ fuori solo la **CNN** (Conv2D/MaxPooling): non c'è un caso d'uso a immagini in 
 | `01_data_prep_and_enrichment.ipynb` | preparazione + enrichment (input di tutti) |
 | `02_consumption_ecodriving.ipynb` | consumo a segmento, solo ICE |
 | `03_unsupervised_context_and_styles.ipynb` | tratti stradali + stili di guida × powertrain |
-| `04_autoencoder_diagnostics.ipynb` | anomaly detection (autoencoder) |
 | `outputs/ved_enriched.parquet` | dataset consolidato + elevation + slope (input di tutti) |
 | `RELAZIONE_PROGETTO.md` | **questo file** — panoramica per l'esame |
-| `GUIDA_CELLE_NB02_NB04.md` | spiegazione cella-per-cella di consumo (NB2) e autoencoder (NB4) |
+| `GUIDA_CELLE_NB02_NB03.md` | spiegazione cella-per-cella di consumo (NB2) e contesto/stili (NB3) |
 | `ANALISI_DATI_VED.md` | EDA completa del dataset (numeri reali) |
 | `FAQ_DATI_E_MODELLO.md` | spiegazioni semplici dei concetti (MAF, slope, fuel trim, map-only…) |
 | `DISCUSSIONI_E_SVILUPPI.md` | architettura ACC, perché no NB3→NB2 naïve, idee future |

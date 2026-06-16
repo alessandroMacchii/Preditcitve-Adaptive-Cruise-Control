@@ -56,8 +56,9 @@ Il **fuel trim** è la **correzione che la centralina applica alla miscela aria/
   → Bank 2 spesso vuoto/zero).
 
 Valori grandi e persistenti (es. +20%) = la centralina sta compensando molto → **sintomo di un
-problema** (presa d'aria, sensore che deriva…). Per questo i fuel trim sono il cuore della
-**diagnostica** (NB4): un valore anomalo è un campanello d'allarme.
+problema** (presa d'aria, sensore che deriva…): un valore anomalo è un campanello d'allarme. Sono le
+variabili tipiche di una **diagnostica / manutenzione predittiva** (caso d'uso non trattato in questo
+progetto).
 
 ### Lo `slope` è una frazione? Uno slope di 1 = sale di 1 metro?
 Lo slope è **pendenza = Δquota / Δdistanza** (metri/metri) → un **numero puro (frazione)**, non metri.
@@ -97,7 +98,7 @@ Non in blocco, e per scelta:
 - Le righe "ferme ma motore acceso" (semafori, traffico) le **teniamo apposta**: al minimo si consuma
   comunque, e soprattutto lo **stop-and-go è il fattore numero 1 del consumo per km** (la feature
   `stop_fraction` è risultata la più importante nel modello!). Buttarle cancellerebbe il segnale più
-  utile. Per l'autoencoder, l'idle è "normalità" da imparare.
+  utile.
 
 ---
 
@@ -108,9 +109,7 @@ Quando una HEV/PHEV va in elettrico, **il motore termico è spento** → `MAF = 
 **mentre il veicolo si muove e consuma energia (dalla batteria)**. Il problema: **il VED non registra
 la batteria** (nessun segnale elettrico). Quindi quel consumo è **invisibile**. Lo gestiamo così:
 1. **Modello di consumo (NB2) → solo ICE**, dove MAF = carburante è onesto.
-2. **NB4 (autoencoder):** diamo `EngineType` alla rete, così il "motore spento in marcia" degli ibridi
-   è trattato come **normale**, non come anomalia.
-3. **NB3:** li descriviamo (quanto vanno in elettrico, frenata rigenerativa) invece di forzarli in un
+2. **NB3:** li descriviamo (quanto vanno in elettrico, frenata rigenerativa) invece di forzarli in un
    modello di consumo.
 
 ### I calcoli sul MAF medio non sono "sballati" dal fatto che si spengono?
