@@ -1,4 +1,4 @@
-# Relazione di progetto — ML per l'energia e il contesto di guida (VED)
+cc# Relazione di progetto — ML per l'energia e il contesto di guida (VED)
 
 *(Applicazione: assistente di guida / cruise control adattivo. Inquadramento rivisto 2026-06-14:
 vedi §1.)*

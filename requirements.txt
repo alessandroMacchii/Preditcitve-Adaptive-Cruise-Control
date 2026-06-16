@@ -29,3 +29,5 @@ joblib>=1.3
 # Jupyter (se non già installato nell'ambiente)
 jupyter>=1.0
 ipykernel>=6.25
+
+keras
