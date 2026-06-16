@@ -1,7 +1,7 @@
 # STATE.md — Stato corrente del progetto
 
 > Stato vivo della pipeline: **leggere per primo**, aggiornare a ogni modifica rilevante.
-> **Ultimo aggiornamento:** 2026-06-14 (consolidamento a 4 notebook + allineamento di tutti i doc).
+> **Ultimo aggiornamento:** 2026-06-15 (doc: §5.1 relazione "perché non gli ibridi nel NB2" + markdown NB2).
 
 ## Inquadramento attuale
 **"ML per l'energia e il contesto di guida"** sul VED, applicato a un assistente di guida / ACC.
@@ -35,12 +35,16 @@ ripulito; verrà rigenerato eseguendo i notebook).
    classificazione (4 classi, ~1100 righe, file duplicati): nessuno risolveva il terreno.
 3. **Consumo solo-ICE:** il MAF è proxy valido solo per i termici (HEV/PHEV vanno in elettrico
    ~21–24% del moto → MAF=0; il VED non ha segnali batteria, verificato sullo schema grezzo).
-4. **Consolidamento a 4 notebook:** eliminato il vecchio NB2 "MAF istantaneo" (ridondante); il
-   modello a segmento è diventato il NB2; gli stili di guida sono confluiti nel NB3 (Parte B);
-   l'autoencoder è il NB4 (con `EngineType` one-hot).
+4. **Struttura a 4 notebook:** NB2 = consumo a segmento (solo-ICE); NB3 = contesto stradale +
+   stili di guida (Parte B); NB4 = autoencoder (con `EngineType` one-hot).
 5. **NB2 snellito:** tenuti **solo XGBoost (default + tunato)**; rimossi baseline/Ridge/Lasso/RF
    (scelta di Alex; XGBoost regge sul *prior* tabellari→boosting). **Conseguenza:** la
    regolarizzazione L1/L2 e Random Forest non sono più nel progetto.
+6. **Ibridi nel NB2 (2026-06-15):** documentato *perché* non si estende il consumo agli HEV/PHEV
+   "tenendo conto del tempo in elettrico" — il SoC non è nel VED → la frazione-elettrica è una
+   variabile latente non osservata; usarla dal target = leakage; serve un modello *hurdle* con SoC
+   (sviluppo futuro). Scritto in `RELAZIONE_PROGETTO.md` §5.1 e nel markdown §1 del NB2. Corretta
+   anche una riga stale nell'intro NB2 (elencava ancora Ridge/Lasso/RF).
 
 ## Cosa verificare dopo l'esecuzione
 - **NB2:** la feature importance — atteso che dominino `stop_fraction` e velocità, terreno ~0,06

@@ -42,7 +42,6 @@ dell'Università del Michigan (~17,9M righe di telemetria OBD-II reale, Ann Arbo
 - `FAQ_DATI_E_MODELLO.md` — spiegazioni semplici dei concetti (MAF, slope, fuel trim, map-only, ibridi…).
 - `FILE_DI_OUTPUT.md` — catalogo dei file in `outputs/` (cosa sono, da quale notebook).
 - `GUIDA_CELLE_NB02_NB04.md` — spiegazione cella-per-cella del modello di consumo e dell'autoencoder.
-- `STORIA_PROGETTO.md` — come si è arrivati al modello map-only.
 - `DISCUSSIONI_E_SVILUPPI.md` — architettura concettuale e idee future.
 - `STATE.md` — stato vivo della pipeline.
 

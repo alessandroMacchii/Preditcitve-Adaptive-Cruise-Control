@@ -7,7 +7,7 @@
 > Allineata ai notebook attuali (2026-06-14): NB2 = consumo a segmento **solo ICE**, **solo XGBoost**
 > (default + tunato); NB4 = autoencoder con **EngineType**. Gli **stili di guida × powertrain** sono
 > nel NB3 (Parte B), spiegati in `RELAZIONE_PROGETTO.md`. Contesto: `ANALISI_DATI_VED.md` (dati),
-> `STORIA_PROGETTO.md` (map-only), `STATE.md` (stato).
+> `STATE.md` (stato).
 
 ---
 

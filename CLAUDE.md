@@ -24,7 +24,7 @@ Progetto d'esame di Alex.
    (Open-Meteo) e calcola pendenza + accelerazione. Output: `outputs/ved_enriched.parquet`.
 2. `02_consumption_ecodriving.ipynb` — **consumo / eco-driving**: predice `maf_per_km` su segmenti
    ~250 m, **solo ICE** (MAF è proxy valido solo per i termici), feature map-only + anticipazione.
-   Assorbe la lezione del vecchio target istantaneo (tautologico). Esclusi RPM/Load e EngineType.
+   Esclusi RPM/Load e EngineType.
 3. `03_unsupervised_context_and_styles.ipynb` — **contesto + stili di guida**: Parte A clustering
    dei tratti stradali (K-Means/PCA/t-SNE/mappa); Parte B clustering dei **guidatori** (cinematica)
    con confronto **stile × powertrain** (chi-quadro) + confronto energetico ICE/HEV/PHEV.
@@ -32,9 +32,7 @@ Progetto d'esame di Alex.
    detection sui fuel trim/sensori; include `EngineType` (il motore-spento-in-marcia degli ibridi
    è normale, non anomalia). Confronto con Isolation Forest.
 
-> Storia: si è partiti da 5 notebook (NB2 MAF istantaneo + NB4 segmento + NB5 autoencoder); il NB2
-> istantaneo è stato eliminato (ridondante), il segmento è diventato NB2 (solo-ICE), gli stili di
-> guida sono confluiti in NB3. **I notebook nuovi non sono ancora stati eseguiti** (lo fa Alex).
+> **I notebook nuovi non sono ancora stati eseguiti** (lo fa Alex).
 
 ## La decisione che definisce il progetto: modello "MAP-ONLY"
 Il NB2 usa **solo feature note in anticipo a un ACC** (velocità, accelerazione, pendenza
@@ -42,7 +40,6 @@ attuale/futura, velocità futura, contesto). Sono **esclusi di proposito** i seg
 `Engine_RPM_RPM`, `Absolute_Load_pct`, `rpm_roll10s_mean` perché: (a) non noti in anticipo
 nel caso d'uso reale, (b) quasi-circolari col target (il MAF è ~ RPM × carico). Includerli
 dà R² più alto ma fa imparare una scorciatoia e azzera il ruolo della strada.
-→ **Storia completa con i numeri in `STORIA_PROGETTO.md`** (documento per il prof).
 
 ## Come si esegue
 - Interprete: `./.venv/Scripts/python.exe` (ambiente del progetto).
@@ -50,20 +47,21 @@ dà R² più alto ma fa imparare una scorciatoia e azzera il ruolo della strada.
 - ⚠️ Possibile **mismatch versione scikit-learn** tra l'ambiente che ha salvato i
   `.joblib` e il `.venv`: rieseguire/salvare nello stesso ambiente (vedi STATE.md).
 
-## Fatti sui dati (verificati — vedi memoria `ved-schema-facts`)
+## Fatti sui dati (verificati)
 - `content/`: 54 parquet, ~18,26M righe, schema verificato. Area: **Ann Arbor (MI)**.
 - `Datetime` è costante per trip; il tempo intra-trip è `Timestampms`. Esiste `log_MAF`.
 - Terreno **dolce**: la pendenza ha segnale limitato (+ risoluzione SRTM ~30 m). È un
   limite del *dato*, non del metodo — buon spunto per "sviluppi futuri".
 
 ## Trappole note (non reintrodurle)
-- **Feature look-ahead**: usare `FixedForwardWindowIndexer` + `shift(-1)`, NON il rolling
-  trailing di default (bug storico, vedi memoria `ved-lookahead-bug`).
+- **Anticipazione (look-ahead) NB2**: le feature `next_*` si costruiscono con
+  `groupby(['VehId','Trip']).shift(-1)` (segmento successivo), mai guardando indietro. Deve
+  entrare il futuro di strada/velocità, MAI il MAF futuro (target).
 - **Cache elevation**: `build_elevation_cache.py` è resumabile (salva dopo ogni batch).
   La cella 18 del NB1 scarica solo i punti mancanti e solleva se la cache resta incompleta.
   Open-Meteo è **gratuita, no API key**; l'unico vincolo è il rate-limit 429 (già gestito).
-- **Controfattuale NB2**: scalare *tutte* le feature di velocità in modo coerente e
-  ricalcolare `speed_delta_future_5`; le feature di strada restano fisse.
+- **Controfattuale NB2**: scalare in modo coerente tutte le `SPEED_COLS` (`speed_mean/max/min/std`,
+  `entry_speed`, `accel_abs_mean`); le feature di strada/`next_*` restano fisse.
 
 ## File di contesto (in `project context/`, leggerli secondo necessità)
 - `STATE.md` = stato vivo della pipeline + prossimi passi (**leggere per primo**).
@@ -72,7 +70,6 @@ dà R² più alto ma fa imparare una scorciatoia e azzera il ruolo della strada.
 - `FAQ_DATI_E_MODELLO.md` = spiegazioni semplici (cos'è MAF/slope/fuel trim, map-only, ibridi, skew…) per lo studio.
 - `FILE_DI_OUTPUT.md` = cosa contiene ogni file in `outputs/` e quale notebook lo produce.
 - `GUIDA_CELLE_NB02_NB04.md` = spiegazione cella-per-cella di consumo (NB2) e autoencoder (NB4).
-- `STORIA_PROGETTO.md` = come si è arrivati al modello map-only (numeri con/senza motore).
 - `DISCUSSIONI_E_SVILUPPI.md` = architettura concettuale, perché NON integrare NB3→NB2 naïve
   (leakage), idee di sviluppo futuro.
 - `README.md` (in root) = setup utente, aggiornato al reframe e ai 4 notebook.

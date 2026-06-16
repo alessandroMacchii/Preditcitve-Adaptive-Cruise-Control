@@ -4,12 +4,10 @@
 > progetto è stato reinquadrato da "ACC orografico" a *"ML per l'energia e il contesto di guida"*
 > (terreno = limite del dato) e **consolidato in 4 notebook**: 01 prep · 02 consumo a segmento
 > (solo-ICE, solo XGBoost) · 03 contesto stradale + stili di guida × powertrain · 04 autoencoder.
-> Dove sotto si legge "NB2 istantaneo / NB4 / NB5", vanno reinterpretati con questa struttura nuova.
 > Quadro aggiornato in `RELAZIONE_PROGETTO.md` e `STATE.md`.
 
 > Raccolta dei ragionamenti fatti con Claude (sessione 2026-06-13), così una nuova
-> sessione non riparte da zero. Per lo **stato operativo** vedi `STATE.md`; per la
-> **storia del modello map-only** vedi `STORIA_PROGETTO.md`.
+> sessione non riparte da zero. Per lo **stato operativo** vedi `STATE.md`.
 
 ---
 
@@ -19,9 +17,9 @@ Errore mentale comune già chiarito: **NB2 non "decide quanto accelerare"** e **
 non viene dal NB3**. La catena reale di un ACC predittivo:
 
 1. **NB1 (mappa)** → dall'altitudine ricava la **pendenza** del tratto in arrivo. È già una
-   feature di NB2 (`slope`, `slope_future_5/10/30`). La pendenza viene da qui, NON dal NB3.
+   feature di NB2 (`slope_mean`, `next_slope_mean`). La pendenza viene da qui, NON dal NB3.
 2. **NB2 (valutatore di costo)** → dato uno scenario di guida (velocità + pendenza + look-ahead),
-   stima il **MAF** = sforzo/consumo *in quell'istante*. È un **misuratore**, non il guidatore.
+   stima il **`maf_per_km`** del segmento = consumo del tratto. È un **misuratore**, non il guidatore.
 3. **Pianificatore/controllore (fuori scope, fatto a mano nella demo)** → propone più profili di
    velocità, chiede a NB2 il costo di ciascuno, sceglie il più economico. *Questo* determina
    "quanto accelerare". Nel progetto è l'esperimento controfattuale eco/sport.

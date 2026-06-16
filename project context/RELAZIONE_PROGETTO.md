@@ -6,7 +6,7 @@ vedi §1.)*
 > Documento unico per la **discussione d'esame**. Spiega: cos'è il progetto, il dataset (con
 > numeri reali esplorati), l'architettura, ogni notebook, le **criticità** e le **scelte** —
 > in modo da poterlo raccontare al prof. Per il dettaglio cella-per-cella dei notebook nuovi
-> vedi `GUIDA_CELLE_NB02_NB04.md`; per la storia del modello map-only `STORIA_PROGETTO.md`.
+> vedi `GUIDA_CELLE_NB02_NB04.md`.
 >
 > Tutti i numeri di questa relazione vengono da un'esplorazione reale di `ved_enriched.parquet`
 > (17,9M righe), non da stime.
@@ -118,8 +118,6 @@ segmento, controfattuale).
 
 ## 4. I 4 notebook — cosa fanno e le scelte chiave
 
-*(Consolidati 2026-06-14: il vecchio NB2 "MAF istantaneo" è stato eliminato perché ridondante; il
-modello a segmento è diventato il NB2; gli stili di guida sono confluiti nel NB3.)*
 
 ### NB1 — `01_data_prep_and_enrichment.ipynb` (preparazione)
 Consolida i 54 parquet, EDA, **filtro outlier** (Load 0–200%, RPM 0–8000, Speed 0–200, MAF
@@ -137,10 +135,11 @@ default e tunato** (Optuna + GroupKFold per VehId), **sensibilità a SEG_LEN (15
 controfattuale eco/sport. *(Notebook snellito: tenuti solo i due XGBoost; baseline/Ridge/Lasso/RF
 rimossi.)*
 **Due scelte chiave:**
-1. **Segmento, non istante.** Un primo tentativo (eliminato) predisse il MAF *istantaneo*: quasi una
-   tautologia fisica, terreno = rumore, controfattuale artificioso. Il segmento risolve.
+1. **Segmento, non istante.** Predire il MAF *istantaneo* sarebbe quasi una tautologia fisica
+   (terreno = rumore, controfattuale artificioso); il target a segmento `maf_per_km` lo risolve.
 2. **Solo ICE.** Il MAF è proxy di consumo valido solo per i termici; esclusi anche RPM/Load
-   (map-only) ed `EngineType` (ora costante).
+   (map-only) ed `EngineType` (ora costante). *(Perché non includere gli ibridi "tenendo conto del
+   tempo in elettrico"? Tre motivi tecnici in §5.1.)*
 **Numeri reali (run eseguito):** R² ~**0,76**; a dominare **stop_fraction** (~0,25) e velocità; il
 **terreno resta debole (~0,06)** a tutte le lunghezze di segmento → conferma il limite del dato.
 Output: `consumption_model.joblib`, `consumption_results.csv`.
@@ -174,13 +173,50 @@ pct, contributo per-feature, confronto con **Isolation Forest**, ispezione casi,
 | **GroupKFold per VehId** | lo stesso veicolo non in train e validation insieme → CV non ottimistica. |
 | **Look-ahead = futuro di strada/velocità, mai MAF futuro** | è il *punto* del progetto (info da mappe), non leakage; il target non entra mai nelle feature. |
 | **Dedup elevation a 3 decimali** | coerente con SRTM ~30 m; 4 dec era inutilizzabile e più fine della sorgente. |
-| **Consumo a segmento (NB2)** | il target istantaneo era tautologico; il segmento usa il dislivello cumulato e rende sensato il controfattuale. (Il vecchio modello istantaneo è stato eliminato.) |
+| **Consumo a segmento (NB2)** | il target istantaneo sarebbe tautologico; il segmento usa il dislivello cumulato e rende sensato il controfattuale. |
 | **Consumo solo-ICE** | il MAF è proxy valido solo per i termici; HEV/PHEV vanno in elettrico (MAF=0, ~21–24% del moto) e il VED non ha segnali batteria → mescolarli falserebbe il target. |
 | **Powertrain a parte (NB3)** | confronto descrittivo ICE/HEV/PHEV + stili di guida (cinematica, valida per tutti) → "si tiene conto dei tre veicoli" senza forzare il MAF. |
 | **Target `maf_per_km`** | misura l'efficienza, non la distanza banale. |
 | **NO integrazione naïve cluster→consumo** | il cluster contiene `maf_mean`/`rpm_mean` → sarebbe mean-target-encoding mascherato (leakage). Pilastri complementari. |
 | **Optuna invece di GridSearch** | TPE bayesiano: migliori soluzioni a parità di budget (costo = trial × fold × fit). |
 | **StandardScaler dentro la Pipeline** | obbligatorio per Ridge/Lasso e K-Means/PCA/autoencoder; nella Pipeline evita leakage (fit solo sul train). |
+
+### 5.1 Approfondimento: perché NON includere gli ibridi nel NB2 "tenendo conto del tempo in elettrico"
+
+È l'obiezione più naturale: *"gli HEV/PHEV vanno in elettrico una certa % del tempo (MAF=0); non posso
+semplicemente tenerne conto e predire lo stesso `maf_per_km` anche per loro?"*. L'intuizione è
+corretta come **direzione**, ma sul VED non regge, per tre motivi precisi. Vale la pena saperli
+spiegare perché dimostrano che la scelta "solo-ICE" è ragionata, non comoda.
+
+**1. Il *perché* il motore è spento non è osservabile.** Per un ibrido `MAF=0` non è rumore: è la
+centralina che ha deciso di andare in elettrico, e quella decisione dipende soprattutto dallo
+**stato di carica della batteria (SoC)**, oltre che da richiesta di potenza, temperatura e strategia
+del costruttore. **Il VED non registra alcun segnale di batteria** (SoC, corrente/tensione, potenza
+del motore elettrico) — verificato sullo schema grezzo. Quindi lo stesso identico profilo di
+velocità/accelerazione può avere motore acceso o spento a seconda di una **variabile latente che non
+osserviamo**. Predire il MAF a segmento per un ibrido significa predire una funzione di un fattore
+nascosto → **errore irriducibile alto**, e non per colpa del modello.
+
+**2. La "frazione in elettrico" non è una feature nota in anticipo.** Se la si calcola come quota di
+righe con MAF=0 dentro il segmento, la si sta ricavando **dal target stesso** → è
+**leakage circolare** (uso il MAF per costruire una feature con cui predico il MAF). Per usarla
+*onestamente* andrebbe **predetta** prima — il che trasforma il problema in un **modello a due stadi
+(hurdle)**: Stadio 1 = P(motore acceso | feature map-only); Stadio 2 = E[MAF | motore acceso];
+predizione = `P(acceso) × E[MAF | acceso]`. Concettualmente corretto, ma lo Stadio 1 è guidato
+proprio dal SoC non osservato (punto 1) → soffitto di R² basso e *strutturale*.
+
+**3. Il PHEV è il caso peggiore.** Un PHEV può percorrere tutta la prima parte del viaggio in
+**elettrico puro** finché la batteria non si scarica, poi comportarsi come un HEV. Senza SoC **non si
+distinguono i due regimi** dalle sole feature di guida. E nel VED i PHEV sono **12 veicoli su 299**
+→ neanche abbastanza dati per imparare la transizione empiricamente.
+
+**Conseguenza pratica.** Aggiungere semplicemente `EngineType` come feature e allenare su tutti i
+powertrain fa imparare al modello solo uno **"sconto medio"** per tipo di motore, mal calibrato a
+livello di segmento, e **inquina l'interpretazione eco-driving** (per gli ICE il MAF *è* il consumo;
+per gli ibridi il consumo si divide tra carburante ed elettrico, che non misuriamo). Per questo il
+modello di consumo resta **solo-ICE**, e gli ibridi sono trattati **descrittivamente** nel NB3 Parte B
+(frazione motore-spento, frenata rigenerativa, stili di guida sulla cinematica — valida per tutti).
+Il modello *hurdle* resta un buon **sviluppo futuro** se si dispone di un dataset con il SoC (vedi §7).
 
 ---
 
@@ -217,6 +253,9 @@ fuori solo la **CNN** (Conv2D/MaxPooling): non c'è un caso d'uso a immagini in 
   non è "vai piano" (rende non banale l'eco-driving).
 - **Pianificatore DP** "rallenta prima della salita": chiude il cerchio dell'ACC (il NB2 ha già le
   feature di accoppiamento per supportarlo).
+- **Modello *hurdle* per gli ibridi** (Stadio 1: P(motore acceso); Stadio 2: E[MAF | acceso]) su un
+  dataset che includa il **SoC della batteria** — l'unico modo per estendere onestamente il consumo a
+  HEV/PHEV (oggi impossibile sul VED, vedi §5.1).
 - **SHAP** sul modello di consumo (come, non solo quanto, contano le feature).
 - **Eco-routing** visivo (collega consumo + contesto stradale).
 - *(Il clustering a livello di guidatore — profili eco/aggressivo — è già stato realizzato nel NB3,
@@ -226,9 +265,9 @@ fuori solo la **CNN** (Conv2D/MaxPooling): non c'è un caso d'uso a immagini in 
 
 ## 8. Domande d'esame probabili — risposte pronte
 
-- *"Il tuo R² è quello giusto?"* → Il modello di consumo finale (segmento, ICE) fa **R² ~0,76**.
-  Storia: l'esperimento istantaneo dava 0,84 *col motore* (ma barava: RPM/Load quasi-circolari col
-  MAF) → 0,54 map-only (onesto) → poi sono passato al **segmento**. Il percorso è il metodo.
+- *"Il tuo R² è quello giusto?"* → Il modello di consumo (segmento, ICE) fa **R² ~0,76**. Col
+  motore (RPM/Load) salirebbe, ma barerebbe (quasi-circolari col MAF); map-only è la scelta onesta
+  e usabile in un ACC.
 - *"Dov'è il valore della pendenza, se è irrilevante?"* → Su *questo* dato è debole: terreno piatto
   + quantizzazione a 111 m (slope nullo nel 92% delle righe, corr 0,004); confermato nel NB2 (peso
   terreno ~0,06 a tutte le scale). Documentato come **limite del dato**.
@@ -263,6 +302,5 @@ fuori solo la **CNN** (Conv2D/MaxPooling): non c'è un caso d'uso a immagini in 
 | `GUIDA_CELLE_NB02_NB04.md` | spiegazione cella-per-cella di consumo (NB2) e autoencoder (NB4) |
 | `ANALISI_DATI_VED.md` | EDA completa del dataset (numeri reali) |
 | `FAQ_DATI_E_MODELLO.md` | spiegazioni semplici dei concetti (MAF, slope, fuel trim, map-only…) |
-| `STORIA_PROGETTO.md` | la storia del modello map-only (con i numeri con/senza motore) |
 | `DISCUSSIONI_E_SVILUPPI.md` | architettura ACC, perché no NB3→NB2 naïve, idee future |
 | `STATE.md` | stato vivo della pipeline + prossimi passi |
