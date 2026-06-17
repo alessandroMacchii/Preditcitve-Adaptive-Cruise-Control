@@ -234,3 +234,75 @@ Prova nel notebook: senza scaling `speed_mean` = **91% della varianza**, `slope_
   dalla velocità → valgono per tutti i powertrain).
 - **Esame:** "Load = stesso problema del MAF (0 in elettrico); l'aggressività la do con
   `frac_hard_accel/decel`, powertrain-agnostiche."
+
+---
+
+> **Tornata 2026-06-17 — domande sul NB2 (consumo / eco-driving).**
+
+## 22. Keras nel NB2 invece di sklearn, come nel NB3?
+**D:** Si potrebbe usare Keras nel NB2 come nel terzo notebook?
+**R:** **Premessa errata: il NB3 non usa Keras** — è sklearn (K-Means/PCA/t-SNE). Keras/torch erano
+solo del NB4 (rimosso). Si *potrebbe* mettere una MLP, ma è la scelta **sbagliata**: su **dati
+tabellari** il **gradient boosting batte le reti** (prior consolidato); dataset non enorme; perderei
+la **feature importance** (il cuore dell'argomento "strada sì, terreno no"); niente GPU/tuning fragile.
+- **Esame:** *"su tabellari il boosting è lo stato dell'arte; le reti le riservo a segnali grezzi."*
+
+## 23. Perché 250 m per segmento?
+**D:** Perché 250 m e non meno/più?
+**R:** **Trade-off** + c'è già la **cella di sensibilità** (sez. 12) che lo verifica. Corti (50-100 m)
+→ statistiche per-segmento rumorose, `maf_per_km` instabile su distanze piccole, orizzonte `next_*`
+inutile. Lunghi (500-1000 m) → **mescolano tratti eterogenei** (arteria + semaforo nella stessa media),
+persa la risoluzione che serve a pianificare. **250 m** ≈ tratto omogeneo ~10-25 s di guida = scala
+fisica della pianificazione di un ACC. Giustificato **dati + dominio**, non a intuito.
+
+## 24. Cosa fa la cella della sez. 5 (Target e feature, map-only)?
+**D:** Cosa fa la "cella 5"?
+**R:** (cella `[10]`) Incarna la decisione **MAP-ONLY**, tre cose: (1) target `maf_per_km`; (2) lista
+**20 feature** = geometria/terreno + cinematica + **anticipazione** `next_*` + contesto (hour/month/
+peso/OAT), **escludendo** RPM/Load/MAF istantaneo; (3) `dropna` → `seg_model`. In breve: **fissa cosa
+si predice e con quali ingressi, tutti noti in anticipo a un ACC.**
+
+## 25. Anche la macchina non conosce gli RPM in anticipo → perché escluderli era giusto?
+**D:** L'ACC reale non sa gli RPM prima del tratto, come noi: dov'è la differenza?
+**R:** La distinzione è **di quale segmento**. Il modello predice il **segmento in arrivo** → le feature
+devono essere note **prima di guidarlo**: geometria (mappa) + profilo di velocità che il controllore
+**sceglie** di provare. RPM/Load/MAF **del segmento futuro** sono il **risultato** del guidarlo (per
+misurarli dovrei già conoscerne il consumo = il target) **e** quasi-circolari col MAF (≈RPM×carico).
+Gli "RPM attuali" del tratto di ora esistono ma **non descrivono** il tratto futuro ipotetico da valutare.
+- **Esame:** *"li escludo non perché segreti, ma perché sono il risultato del guidare il tratto che
+  voglio predire — usarli è usare la risposta."*
+
+## 26. Perché non uso i cluster del NB3 come feature nel NB2? (aggiorna #5)
+**D:** Il cluster non è una feature in più per il consumo?
+**R:** Storicamente **leakage** (cluster costruito su `maf_mean`/`rpm_mean` = target encoding mascherato).
+**Aggiornamento post-#14:** ora il NB3 clusterizza **senza** maf/rpm/load → **non più leaky**. Ma la
+ragione che **regge comunque**: **nessuna info nuova** — il cluster è una **compressione con perdita**
+di `speed_*`/`accel_*`/`stop_fraction` che il NB2 **ha già grezze**, + crea una **dipendenza di
+pipeline** NB3→NB2. *"I cluster **descrivono** il contesto, non **alimentano** il modello di consumo."*
+
+## 27. Cos'è il look-ahead? È la velocità futura?
+**D:** Il look-ahead è la velocità che so esserci nel prossimo segmento? allora non andrebbe esclusa?
+**R:** **No, non è la velocità realizzata.** Sono 3 feature di **strada** del segmento successivo
+(`next_dz_net`, `next_slope_mean`, `next_stop_fraction`) via `shift(-1)` (cella `[8]`). **Lecite**
+perché derivano dalla **mappa/route** (pendenza e stop davanti = noti dal navigatore) → è proprio
+l'**anticipazione** da dimostrare. **Illecito** (mai fatto): forward del **target o di chi lo determina**
+(`next_MAF`, RPM futuri, velocità realizzata). Sfumatura onesta: `next_stop_fraction` è semi-comportamentale,
+usata come proxy map-knowable di "stop davanti" → la feature look-ahead più borderline, da dichiarare.
+
+## 28. Perché split train/test nel tempo e non mischiare i trip?
+**D:** Perché dividere temporalmente e non a caso i segmenti?
+**R:** **Leakage da correlazione.** Segmenti dello **stesso trip** sono fortemente correlati (stesso
+driver/veicolo/meteo). Split casuale per segmento → pezzi dello stesso trip in train **e** test → il
+modello **memorizza** il trip → **R² gonfiato**. Split per **trip interi ordinati nel tempo** (cella `[12]`,
+80% più vecchi → train) = simula il **deployment reale** (alleno sul passato, predico viaggi nuovi) +
+protegge dal drift. Stessa logica in CV con **GroupKFold per VehId** (cella `[18]`).
+
+## 29. estimators/depth/lr di XGBoost a caso? si migliorano?
+**D:** I parametri XGBoost sono scelti a caso? non si possono migliorare?
+**R:** **No, e sono già ottimizzati.** Il **default** (cella `[16]`: 500/6/0.1) sono valori standard =
+**baseline**. Il modello **finale** (sez. 9-10, celle `[18]`/`[20]`) usa **Optuna** (ricerca bayesiana
+TPE, 30 trial) su estimators/depth/lr **+ regolarizzazione**, valutata in **GroupKFold per VehId**,
+min MAE → `study.best_params`. Quindi il tuning **c'è già**, più serio di una grid manuale. Si può
+spingere oltre (più trial, range più ampi, early stopping) con rendimenti decrescenti.
+- **Esame:** *"i default sono lo standard; i finali li sceglie Optuna con ottimizzazione bayesiana e CV
+  per veicolo — non a caso, ottimizzati."*
