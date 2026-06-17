@@ -129,6 +129,11 @@ confronto tra i tre powertrain. Gli indici `[n]` sono la posizione della cella n
 > **Nota generale NB3:** i numeri dei cluster (0,1,2…) **non sono stabili** tra run di K-Means → fai
 > sempre il naming guardando la heatmap, non l'ID. E le silhouette modeste (~0,23 tratti / ~0,29
 > stili) vanno **dichiarate**, non nascoste: i cluster esistono ma sono poco separati.
+>
+> ⚠️ **Parte A aggiornata (2026-06-17):** il clustering dei tratti ora usa **solo cinematica +
+> geometria** (7 feature), esclusi i segnali-motore. Tutti i "Risultato reale" della Parte A qui sotto
+> (dimensioni cluster, silhouette, naming, mappa) vengono dalla **vecchia run a 10 feature** e
+> **vanno riconfermati** alla riesecuzione.
 
 ## Parte A — contesto stradale (celle `[2]`–`[33]`)
 
@@ -147,21 +152,31 @@ sono più piccole di quanto scritto, e col filtro ≥50 passaggi restano solo le
 (Da correggere nel testo o nel binning.)
 
 ## `[6]` Filtro celle con pochi dati
-**Cosa fa:** tiene solo le celle con `n_passages ≥ 50`; mappa scatter dei passaggi.
-**Perché:** una media su 3 punti è rumore, non un comportamento di tratto.
+**Cosa fa:** tiene solo le celle con `n_passages ≥ 50`; due mappe (scartate vs tenute, e densità in
+scala log).
+**Perché:** una media su pochi punti è rumore, non un comportamento di tratto.
+**Soglia scelta coi dati (analisi di sensibilità 10→150):** silhouette **peggiora abbassando** (~0,24
+a 10-20), **satura alzando** (~0,26 da 75 in su, ma con metà delle celle). **50** è sul plateau
+(~0,257) col **massimo di copertura** (~77k celle) → ginocchio della curva. Abbassarla degrada la
+separazione; alzarla non la migliora davvero. All'esame: *"50 non è arbitrario, l'ho scelto con una
+sensibilità."*
 
 ## `[8]` Selezione feature
-**Cosa fa:** 10 feature comportamentali (`speed_*`, `accel_*`, `maf/rpm/load_mean`, `slope_mean`,
+**Cosa fa:** **7 feature cinematiche + geometria** (`speed_*`, `accel_*`, `slope_mean`,
 `stop_fraction`); droppa i NaN (celle con 1 passaggio hanno `std` NaN).
-**Perché:** escluse `n_passages` (meta-dato), `elevation` (quota **assoluta** → identificherebbe il
-*luogo*, non il *tipo*), e le coordinate (stesso motivo: non vogliamo "vicinato A vs B").
-**Risultato reale:** **77.325 celle**, 10 feature.
+**Perché:** esclusi i **segnali-motore** `maf_mean`/`rpm_mean`/`load_mean` (ridondanti — corr col MAF
+0,75/0,52 — e rendono il cluster *leaky* rispetto al consumo; stesso criterio della Parte B). Escluse
+anche `n_passages` (meta-dato), `elevation` (quota **assoluta** → identificherebbe il *luogo*, non il
+*tipo*), e le coordinate.
+**Risultato reale:** **~77.325 celle** (da riconfermare alla riesecuzione), 7 feature.
 
 ## `[10]` Standardizzazione (+ demo del fallimento)
 **Cosa fa:** prima stampa la varianza relativa *senza* scaling, poi applica `StandardScaler`.
 **Perché:** K-Means usa la distanza euclidea → senza scaling le feature a range ampio dominano.
-**Risultato reale:** senza scaling **`rpm_mean` = 99,52%** di tutta la varianza → da solo deciderebbe i
-cluster; dopo lo scaler tutte media 0 / std 1. È la prova didattica del perché serve lo scaler.
+**Risultato reale:** senza scaling domina **`speed_mean`** (range 0–120, di gran lunga il più ampio ora
+che i segnali-motore sono esclusi) → da sola deciderebbe i cluster; dopo lo scaler tutte media 0 /
+std 1. È la prova didattica del perché serve lo scaler. *(Nota: prima dell'esclusione di RPM dominava
+`rpm_mean` al 99,52%; il punto didattico è identico, cambia solo la feature in testa.)*
 
 ## `[12]` Scelta di K — elbow + silhouette
 **Cosa fa:** K da 2 a 10; per ognuno inerzia (WCSS) e silhouette (su un sample di 10k per costo); due
