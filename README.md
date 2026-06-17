@@ -36,10 +36,7 @@ dell'Università del Michigan (~17,9M righe di telemetria OBD-II reale, Ann Arbo
 
 - `RELAZIONE_PROGETTO.md` — panoramica per l'esame (dataset, criticità, scelte) con numeri reali.
 - `ANALISI_DATI_VED.md` — analisi esplorativa completa del dataset (EDA con numeri reali).
-- `FAQ_DATI_E_MODELLO.md` — spiegazioni semplici dei concetti (MAF, slope, fuel trim, map-only, ibridi…).
-- `FILE_DI_OUTPUT.md` — catalogo dei file in `outputs/` (cosa sono, da quale notebook).
-- `GUIDA_CELLE_NB02_NB03.md` — spiegazione cella-per-cella del modello di consumo e del contesto/stili.
-- `DISCUSSIONI_E_SVILUPPI.md` — architettura concettuale e idee future.
+- `discussioni.md` — registro Q&A per il ripasso d'esame.
 - `STATE.md` — stato vivo della pipeline.
 
 ## Setup

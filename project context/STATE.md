@@ -11,7 +11,7 @@
 Due pilastri: **consumo/eco-driving** · **contesto + stili di guida**. Il terreno
 (idea iniziale "ACC orografico") si è rivelato un **segnale debole** → reinquadrato sul **profilo di
 velocità**; terreno = limite del dato. Quadro completo: `RELAZIONE_PROGETTO.md`; dati:
-`ANALISI_DATI_VED.md`; concetti: `FAQ_DATI_E_MODELLO.md`.
+`ANALISI_DATI_VED.md`; ripasso Q&A: `discussioni.md`.
 
 ## Pipeline — i 3 notebook
 ```
@@ -83,5 +83,5 @@ road_segment_clusters.parquet  cluster_profile.csv  cluster_map.html  cluster_ma
 
 ## Sviluppi futuri (citabili all'esame)
 Controfattuale/ottimizzatore **a parità di tempo** (mostra che "vai piano" non è la risposta) ·
-pianificatore DP "rallenta prima della salita" · SHAP sul modello di consumo · eco-routing visivo.
-Dettagli in `DISCUSSIONI_E_SVILUPPI.md`.
+pianificatore DP "rallenta prima della salita" · SHAP sul modello di consumo · eco-routing visivo ·
+i blocchi NB3 rimossi (chi-quadro stile×powertrain, confronto energetico, t-SNE).

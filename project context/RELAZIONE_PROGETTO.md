@@ -5,8 +5,7 @@ vedi §1.)*
 
 > Documento unico per la **discussione d'esame**. Spiega: cos'è il progetto, il dataset (con
 > numeri reali esplorati), l'architettura, ogni notebook, le **criticità** e le **scelte** —
-> in modo da poterlo raccontare al prof. Per il dettaglio cella-per-cella dei notebook nuovi
-> vedi `GUIDA_CELLE_NB02_NB03.md`.
+> in modo da poterlo raccontare al prof. Per il ripasso Q&A vedi `discussioni.md`.
 >
 > Tutti i numeri di questa relazione vengono da un'esplorazione reale di `ved_enriched.parquet`
 > (17,9M righe), non da stime.
@@ -284,11 +283,9 @@ studiati ma non più applicati qui.
 |---|---|
 | `01_data_prep_and_enrichment.ipynb` | preparazione + enrichment (input di tutti) |
 | `02_consumption_ecodriving.ipynb` | consumo a segmento, solo ICE |
-| `03_unsupervised_context_and_styles.ipynb` | tratti stradali + stili di guida × powertrain |
+| `03_unsupervised_context_and_styles.ipynb` | tratti stradali + stili di guida |
 | `outputs/ved_enriched.parquet` | dataset consolidato + elevation + slope (input di tutti) |
 | `RELAZIONE_PROGETTO.md` | **questo file** — panoramica per l'esame |
-| `GUIDA_CELLE_NB02_NB03.md` | spiegazione cella-per-cella di consumo (NB2) e contesto/stili (NB3) |
 | `ANALISI_DATI_VED.md` | EDA completa del dataset (numeri reali) |
-| `FAQ_DATI_E_MODELLO.md` | spiegazioni semplici dei concetti (MAF, slope, fuel trim, map-only…) |
-| `DISCUSSIONI_E_SVILUPPI.md` | architettura ACC, perché no NB3→NB2 naïve, idee future |
+| `discussioni.md` | registro Q&A per il ripasso d'esame |
 | `STATE.md` | stato vivo della pipeline + prossimi passi |

@@ -2,7 +2,7 @@
 
 > Sintesi delle domande di Alex e delle risposte chiave, in forma abbreviata, per ricordarle quando
 > si spiega il progetto. Si aggiorna a ogni nuova discussione. Per il dettaglio completo:
-> `RELAZIONE_PROGETTO.md`, `FAQ_DATI_E_MODELLO.md`, `GUIDA_CELLE_NB02_NB03.md`.
+> `RELAZIONE_PROGETTO.md`, `ANALISI_DATI_VED.md`.
 >
 > **Avviato:** 2026-06-17.
 
@@ -131,7 +131,7 @@ clustering tratti ora = **cinematica + geometria** (7: `speed_*`, `accel_*`, `sl
 `stop_fraction`).
 - **Conseguenze:** (1) i cluster cambiano → `road_segment_clusters.parquet` da rigenerare; (2) la demo
   dello scaling ora la domina `speed_mean` (~90%) invece di `rpm_mean` (99,52%) — stessa lezione; (3)
-  niente più leakage. Aggiornati anche i markdown del NB3 e la `GUIDA_CELLE_NB02_NB03.md`.
+  niente più leakage. Aggiornati anche i markdown del NB3.
 
 ## 15. Ma lo "sforzo motore" non è un aiuto in più per separare i cluster?
 **D:** Anche se leaky, sapere quanto consuma/sforza il motore non aiuta a separare meglio i tratti?
