@@ -35,6 +35,100 @@ SRTM), da cui `elevation_m` e `slope`. Aggiunti anche `accel_kmh_s`, `dist_m`, `
 - **Contesto:** `OAT_DegC` (temperatura esterna), `EngineType`, `Generalized_Weight`.
 - **Derivate per riga:** `dist_m`, `dt_ms` (distanza e Δt dal punto precedente).
 
+### 2.1 Le 18 colonne del file **grezzo** (VED originale)
+
+Esempi presi da una riga reale (`content/VED_171101_week.parquet`, veicolo in marcia a 40 km/h).
+
+| Colonna | Tipo | Descrizione | Esempio |
+|---|---|---|---|
+| `VehId` | int | ID anonimo del veicolo nella flotta (299 in totale) | `8` |
+| `Trip` | int | ID del viaggio per quel veicolo (riparte da capo per ogni `VehId`) | `706` |
+| `Timestampms` | int | Millisecondi dall'inizio del trip (**tempo intra-trip**, riparte da 0 a ogni viaggio) | `0` |
+| `Latitude_deg` | float | Latitudine GPS in gradi decimali (area di Ann Arbor) | `42.2776` |
+| `Longitude_deg` | float | Longitudine GPS in gradi decimali | `-83.6988` |
+| `Vehicle_Speed_km_per_h` | float | Velocità del veicolo (km/h) | `40.0` |
+| `MAF_g_per_sec` | float | **Mass Air Flow**: massa d'aria aspirata dal motore (g/s) → **proxy del consumo** di carburante (valido solo per i termici) | `22.13` |
+| `Engine_RPM_RPM` | float | Regime del motore (giri/min) | `2285` |
+| `Absolute_Load_pct` | float | **Carico assoluto** del motore: % del flusso d'aria max = "quanto spinge" | `49.0` |
+| `OAT_DegC` | float | **Outside Air Temperature**: temperatura dell'aria esterna (°C) | `6.25` |
+| `Short_Term_Fuel_Trim_Bank_1_pct` | float | Correzione **a breve termine** dell'iniezione, banco cilindri 1 (%): la centralina aggiusta la miscela istante per istante | `-3.91` |
+| `Short_Term_Fuel_Trim_Bank_2_pct` | float | Come sopra, **banco cilindri 2** (motori a V) † | `-3.13` |
+| `Long_Term_Fuel_Trim_Bank_1_pct` | float | Correzione **a lungo termine** (media appresa nel tempo), banco 1 (%) | `-3.13` |
+| `Long_Term_Fuel_Trim_Bank_2_pct` | float | Come sopra, banco 2 † | `-2.34` |
+| `Datetime` | datetime | Timestamp di **inizio trip** (**costante** dentro lo stesso trip) | `2017-11-01 14:04:46` |
+| `EngineType` | str | Tipo di powertrain: **ICE / HEV / PHEV** | `ICE` |
+| `Generalized_Weight` | float | Peso "generalizzato" del veicolo (kg, arrotondato per anonimato) | `2500` |
+| `log_MAF` | float | Logaritmo naturale di `(MAF+1)` — trasformazione (**già nel grezzo**) che riduce l'asimmetria della distribuzione del MAF | `3.14` |
+
+† **Non** finiscono nell'enriched: i due trim del **banco 2** sono scartati nel salvataggio del NB1 (si
+tiene solo il banco 1). Le 5 colonne aggiunte nel NB1 (`elevation_m`, `slope`, `accel_kmh_s`, `dist_m`,
+`dt_ms`) portano da **18 grezze → 21** dell'enriched (18 − 2 banco 2 + 5 derivate).
+
+### 2.2 Le 5 colonne **derivate** aggiunte nel NB1
+
+Esempi da una riga reale dell'enriched (veicolo in decelerazione). Tutte calcolate **punto vs punto
+precedente, dentro lo stesso trip** (`groupby(['VehId','Trip']).shift(1)`).
+
+| Colonna | Tipo | Come si calcola | A cosa serve | Esempio |
+|---|---|---|---|---|
+| `elevation_m` | float | Quota dal **dedup a 3 dec → Open-Meteo (SRTM)** poi merge (non un calcolo per riga) | Base per `slope`, `dz_net`/`climb`/`descent` nel NB2 | `253.0` |
+| `dist_m` | float | Distanza orizzontale dal punto precedente (**Haversine**) | **Segmentazione** ~250 m nel NB2; denominatore di `slope` | `46.19` |
+| `dt_ms` | float | Δt dal punto precedente (`Timestampms − Timestampms_prev`) | `air_g = MAF·dt`; denominatore di `accel` | `200.0` |
+| `slope` | float | `dz / dist_m` (Δquota/Δspazio), guardia `dist>1`, clip ±0,3 | Feature di **terreno** (risultata debole) in NB2/NB3 | `-0.0433` |
+| `accel_kmh_s` | float | `dv / (dt_ms/1000)` (Δvelocità/Δtempo), guardia `dt>50ms`, clip −15..+10 | **Cinematica** (segnale forte): `accel_abs_mean`, stili di guida | `-10.0` |
+
+> `dist_m`/`dt_ms` sono **NaN sulla prima riga di ogni trip** (26.285 righe, vedi §3); `slope`/`accel`
+> lì sono messi a 0. (`elevation_m` non è una derivata "per riga" ma un dato esterno agganciato; lo metto
+> qui perché è comunque aggiunto dal NB1 e non c'è nel grezzo.)
+
+### 2.3 Feature **costruite nei notebook** (non sono nel parquet)
+
+Le colonne sopra sono dati per *riga*. I modelli però lavorano su **unità aggregate** — un **segmento di
+strada** (NB2), una **cella spaziale** (NB3 Parte A), un **guidatore** (NB3 Parte B) — e ricavano le
+feature aggregando le righe enriched. Esempi da unità reali calcolate sui dati.
+
+**NB2 — livello segmento (~250 m, solo ICE).** Target + 20 feature *map-only*. Esempio: un segmento
+stop-and-go (VehId 116, speed media 13 km/h).
+
+| Feature | Da dove | Significato | Esempio |
+|---|---|---|---|
+| `maf_per_km` **(target)** | `Σ(MAF·dt) / km` | Aria/km = **consumo del tratto** | `4652` |
+| `seg_distance_m` | `Σ dist_m` | Lunghezza del segmento | `241.3` |
+| `dz_net` | `elev_fine − elev_inizio` | Dislivello netto (terreno) | `2.0` |
+| `climb_m` / `descent_m` | `Σ` salite / discese | Salita/discesa cumulata | `10.0` / `8.0` |
+| `slope_mean` / `slope_max_abs` | media / max\|·\| di `slope` | Pendenza media / picco | `0.003` / `0.300` |
+| `speed_mean/max/min/std` | stat. di `Vehicle_Speed` | Profilo di velocità | `13.3 / 26 / 0 / 8.5` |
+| `accel_abs_mean` | media \|`accel_kmh_s`\| | Intensità di accel/decel | `2.41` |
+| `stop_fraction` | frazione righe `speed<2` | Quota fermo (stop-and-go) — **feature top** | `0.196` |
+| `entry_speed` | prima `Vehicle_Speed` del segmento | Energia cinetica ereditata | `20.0` |
+| `next_dz_net` / `next_slope_mean` / `next_stop_fraction` | `shift(-1)` del segmento dopo | **Anticipazione** (look-ahead, da mappa) | `-28 / -0.006 / 0.333` |
+| `Generalized_Weight` | `first` | Peso veicolo (contesto) | `2526` |
+| `OAT_DegC` | media | Temperatura esterna | `3.19` |
+| `hour` / `month` | da `Datetime` | Ora/mese (contesto traffico/stagione) | `13` / `11` |
+
+**NB3 Parte A — livello cella spaziale (~11×8 m).** 7 feature *cinematica + geometria* che **formano** i
+cluster, + `maf_mean` solo **descrittiva**. Esempio: una cella scorrevole (120 passaggi).
+
+| Feature | Da dove | Ruolo | Esempio |
+|---|---|---|---|
+| `speed_mean` / `speed_std` | media/std `Vehicle_Speed` nella cella | clustering | `46.4` / `5.98` |
+| `accel_mean` / `accel_std` | media/std `accel_kmh_s` | clustering | `0.22` / `2.71` |
+| `accel_abs_mean` | media \|`accel`\| | clustering | `1.06` |
+| `slope_mean` | media `slope` | clustering (geometria) | `-0.030` |
+| `stop_fraction` | frazione `speed<2` | clustering | `0.000` |
+| `maf_mean` *(→ `maf_mean_descr`)* | media `MAF` | **solo descrittiva** (non clusterizza) | `9.16` |
+
+**NB3 Parte B — livello guidatore (`VehId`).** 8 feature *cinematiche* (powertrain-agnostiche). Esempio:
+un guidatore HEV.
+
+| Feature | Da dove | Significato | Esempio |
+|---|---|---|---|
+| `speed_mean` / `speed_std` | media/std `Vehicle_Speed` del guidatore | Andatura e variabilità | `38.5` / `21.0` |
+| `speed_p85` | 85° percentile velocità | Velocità di **crociera** | `61.0` |
+| `accel_abs_mean` / `accel_std` | media\|·\| / std `accel` | Vivacità di guida | `1.92` / `4.05` |
+| `frac_hard_accel` / `frac_hard_decel` | frazione `accel>6` / `accel<−6` | **Accelerate/frenate brusche** (aggressività) | `0.063` / `0.057` |
+| `stop_fraction` | frazione `speed<2` | Quota di tempo da fermo | `0.069` |
+
 ## 3. Valori mancanti
 
 Solo due colonne hanno NaN: **`dist_m` e `dt_ms`, 26.285 ciascuna** — esattamente il numero di trip.

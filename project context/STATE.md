@@ -1,10 +1,16 @@
 # STATE.md — Stato corrente del progetto
 
 > Stato vivo della pipeline: **leggere per primo**, aggiornare a ogni modifica rilevante.
-> **Ultimo aggiornamento:** 2026-06-17 (NB3 **sfoltito** da Alex: tenuto solo l'essenziale da presentare —
-> rimossi t-SNE, cluster↔EngineType, chi-quadro stile×powertrain, stile→consumo, confronto energetico;
-> import consolidati, PCA ripristinata, doc riallineati. In precedenza: rimosso il NB4
-> autoencoder/diagnostica → il progetto resta a **3 notebook**).
+> **Ultimo aggiornamento:** 2026-06-17 (sessione lunga). NB3 **sfoltito** (rimossi t-SNE,
+> cluster↔EngineType, chi-quadro stile×powertrain, stile→consumo, confronto energetico; import consolidati,
+> PCA ripristinata); **fix heatmap** (z-score dalle medie non arrotondate, `slope_mean` non spariva più +
+> riga `maf_mean_descr`); **salvataggio NB3 snellito** (solo `cluster_profile.csv` + `cluster_map.html`);
+> tabelle colonne in `ANALISI_DATI_VED.md` (§2.1/2.2/2.3); voci #30–#39 in `discussioni.md`. **Esplorata e
+> ANNULLATA** la griglia quota a 30 m (vedi `discussioni.md` #36). In precedenza: NB4 rimosso → **3 notebook**.
+>
+> ⚠️ **Lavoro NON committato (per la prossima sessione):** `03_..ipynb` (fix heatmap + salvataggio) e i
+> file di contesto `ANALISI_DATI_VED.md`, `STATE.md`, `discussioni.md`. NB1 è pulito (= HEAD). Vanno
+> **rieseguiti i fix del NB3** e committato il tutto.
 
 ## Inquadramento attuale
 **"ML per l'energia e il contesto di guida"** sul VED, applicato a un assistente di guida / ACC.
@@ -15,22 +21,28 @@ velocità**; terreno = limite del dato. Quadro completo: `RELAZIONE_PROGETTO.md`
 
 ## Pipeline — i 3 notebook
 ```
-[OK]            01_data_prep_and_enrichment.ipynb       eseguito → ved_enriched.parquet (~17,9M righe)
-[OUTPUT STALE]  02_consumption_ecodriving.ipynb         consumo maf_per_km a segmento, SOLO ICE, solo XGBoost
-[OUTPUT STALE]  03_unsupervised_context_and_styles.ipynb  A) tratti stradali  B) stili di guida (sfoltito 17/06)
+[OK, committato]     01_data_prep_and_enrichment.ipynb        eseguito → ved_enriched.parquet (~17,9M righe)
+[DA VERIFICARE]      02_consumption_ecodriving.ipynb          consumo maf_per_km a segmento, SOLO ICE, solo XGBoost
+[RUN OK, FIX DA RIESEGUIRE] 03_unsupervised_context_and_styles.ipynb  A) tratti  B) stili (sfoltito 17/06)
 ```
-⚠️ **Stato output disallineato.** I due notebook NB2/NB3 hanno output già presenti in `outputs/` (modello
-consumo, cluster…), ma sono di una **run del 14/06**, mentre i notebook sono stati **rimodificati e
-committati il 16/06** (commit `ce1ab41 "edits"`) *dopo* quella run. Quindi gli output esistono ma
-**non riflettono il codice attuale** → vanno **rigenerati** rieseguendo i notebook nell'ordine
-02 → 03 (01 è già fatto). I notebook sono validati strutturalmente (nbformat); **li esegue Alex**.
+**Stato (17/06, fine sessione):**
+- **NB1** rieseguito e **committato** (ha gli output, incl. grafico slope). Pulito = HEAD.
+- **NB3** rieseguito oggi a **K=4** (cluster: incrocio/urbano-misto/scorrevole/autostrada; output reali nel
+  notebook committato). **MA** ci sono **fix non committati** (heatmap z-score + salvataggio snellito) →
+  **rieseguire** quelle celle e **ricommittare**.
+- **NB2:** verificare che sia stato rieseguito col codice attuale (solo-XGBoost). Se in dubbio, rieseguirlo.
+- I notebook **li esegue Alex** nel kernel del `.venv`.
 
-`outputs/` contiene attualmente (run 14/06):
+`outputs/` — file utili:
 ```
 ved_enriched.parquet           (input di tutti, dalla run NB1)   elevation_cache.parquet
 consumption_model.joblib       consumption_results.csv          consumption_seglen_sensitivity.csv   [NB2]
-road_segment_clusters.parquet  cluster_profile.csv  cluster_map.html  cluster_map_static.png          [NB3]
+cluster_profile.csv            cluster_map.html                                                       [NB3]
 ```
+> **NB3 salva solo l'essenziale (scelta di Alex):** `cluster_profile.csv` (profilo+nome dei cluster) e
+> `cluster_map.html` (mappa interattiva). **Non** salva più `road_segment_clusters.parquet` né
+> `cluster_map_static.png`. Orfani da cancellare se ancora su disco: quei due + `anomaly_scores.parquet`
+> e `telemetry_autoencoder.keras` (residui del NB4 rimosso).
 
 ## Ambiente
 - Interprete: `./.venv/Scripts/python.exe`.
@@ -78,8 +90,13 @@ road_segment_clusters.parquet  cluster_profile.csv  cluster_map.html  cluster_ma
   confronto energetico; import consolidati in `[2]`; ripristinata la cella PCA (era orfana dopo le
   cancellazioni); markdown/intro/riepiloghi riallineati. **Restano due celle di riepilogo redondanti**
   (`[38]` e `[39]`): Alex può accorparle.
-- I notebook NB2/NB3 **da rieseguire** per allineare gli output al codice attuale (gli output
-  in `outputs/` sono di una run precedente — vedi nota "Stato output disallineato" sopra).
+- **Griglia quota a 30 m: esplorata e ANNULLATA (17/06).** Idea: campionare la quota a 30 m (risoluzione
+  nativa SRTM) invece dei 111 m attuali. Tutto ripristinato a `ROUND_DECIMALS=3` (NB1 + `build_elevation_cache.py`).
+  Motivo: ~2h per il rate-limit API + guadagno marginale su città piatta. **Non rifarlo prima dell'esame**;
+  resta sviluppo futuro. Dettagli e numeri in `discussioni.md` #36.
+- **Fix heatmap NB3 (17/06, da committare):** lo z-score si calcola dalle medie **non arrotondate**
+  (`.round(2)` azzerava `slope_mean` → riga NaN); aggiunta riga descrittiva `maf_mean_descr`. Vedi #39.
+- **NB3 da rieseguire** per applicare i fix (heatmap + salvataggio) e poi committare. NB2 da verificare.
 
 ## Sviluppi futuri (citabili all'esame)
 Controfattuale/ottimizzatore **a parità di tempo** (mostra che "vai piano" non è la risposta) ·

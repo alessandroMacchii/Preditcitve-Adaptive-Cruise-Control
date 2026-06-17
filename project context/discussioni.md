@@ -85,9 +85,27 @@ tenute (blu); destra densità in **scala log**.
 
 ## 10. Come si calcola lo slope?
 **D:** Come è calcolata la pendenza?
-**R:** `slope = Δquota / Δdistanza`, **punto contro il precedente** dentro lo stesso trip (`shift(1)`):
-`dz = quota_ora − quota_prima`, `dist` = distanza orizzontale (Haversine). Es. salgo 2 m in 40 m →
-slope 0,05 = 5%. Non è un valore "globale", è tratto-per-tratto.
+**R:** "Salita fratto percorso": `slope = Δquota / Δdistanza orizzontale`, tra **due punti GPS
+consecutivi dello stesso trip**. Es. salgo 2 m in 40 m → 0,05 = 5%. È **tratto-per-tratto**, non globale.
+**Passi del codice (NB1, cella "Calcolo della pendenza"):**
+1. **Ordina** per `VehId, Trip, Timestampms` (consecutivo = ordine temporale del viaggio).
+2. **Punto precedente** dentro il trip con `groupby(['VehId','Trip']).shift(1)` (lat/lon/quota/tempo della
+   riga prima). Lo shift *dentro il trip* evita di legare fine-viaggio↔inizio-successivo → la **prima riga
+   di ogni trip non ha "prima"** → NaN (poi droppata nel salvataggio).
+3. **Numeratore** `dz_m = elevation_m − elev_prev` (dislivello verticale).
+4. **Denominatore** `dist_m = haversine(lat_prev,lon_prev, lat,lon)` (distanza orizzontale sulla sfera
+   terrestre, **formula di Haversine**, R=6.371 km).
+5. **Divisione con due guardie:**
+   - `np.where(dist_m > 1.0, dz/dist, 0.0)` → se l'auto è quasi ferma (Δdist < 1 m) mette **0** invece di
+     dividere per ~0 (niente valori esplosivi);
+   - `.clip(-0.3, 0.3)` → tappa a **±30%**; oltre, in città, è errore SRTM non rampa vera.
+- **Perché 0 nel ~92%:** è il **numeratore** → `dz_m = 0` ogni volta che i due punti consecutivi cadono
+  nello **stesso blocco-quota ~111×82 m** (stessi `lat_round`/`lon_round` → stessa `elevation_m`). Non è il
+  denominatore: è che la **quota non cambia dentro il blocco**. Metodo corretto, debole solo per la
+  *sorgente quota* quantizzata. Vedi [[#11]] (quota ricavata da noi) e [[#33]] (perché non più decimali).
+- **Nota gemella:** l'**accelerazione** è calcolata con la stessa logica ma sul tempo: `accel = Δvelocità /
+  Δt` (`dv/(dt_ms/1000)`, guardia `dt > 50 ms`, clip −15..+10 km/h·s) per gestire il **sampling irregolare**
+  (Δt varia ~100–1400 ms) — non si può usare un `diff()` semplice.
 
 ## 11. L'elevation era nel dataset o l'abbiamo ricavata?
 **D:** La quota c'era nei dati grezzi?
@@ -334,3 +352,145 @@ motori. Conseguenze e interventi:
 - **Pendenze residue (per Alex):** `K_FINAL` è **forzato a 4** in `[14]`; restano **due celle di
   riepilogo** redondanti in fondo (accorpabili); i numeri "Risultato reale" della GUIDA Parte A sono di
   una run vecchia → da riconfermare rieseguendo.
+
+## 31. Il "filtro sul movimento" va tolto per il clustering? Due dataset (supervised senza soste / clustering con soste)?
+**D:** Visto che facciamo clustering, non conviene togliere il filtro sul movimento? O fare un dataset
+supervised senza i momenti fermi e uno per il clustering con anche i fermi?
+**R:** **Equivoco da chiarire: il filtro NON rimuove le soste.** È nel **NB1 §5**:
+`df[(speed > 0) | (RPM > 100)]` → tiene la riga se si muove **O** il motore è acceso. Quindi auto ferma
+al **semaforo col motore acceso, stop-and-go, code → TENUTI**. Rimuove solo `speed=0` **E** `RPM≤100`
+(**motore spento e fermo**: parcheggi, avvii/fine trip) = **334.788 righe, ~1,8%**.
+- **Toglierlo per il clustering → peggiora:** le soste utili (`stop_fraction` per incroci/semafori) sono
+  **già dentro** (motore acceso). Le righe tolte sono **parcheggi/bordi-trip** → reinserirle creerebbe
+  celle "sempre ferme" nei parcheggi = rischio **cluster-spazzatura "fermo"** che non è un tipo di strada.
+  Il filtro quindi **aiuta** il clustering.
+- **Supervised "senza i fermi" → è il contrario di ciò che serve:** nel NB2 lo `stop_fraction` è la
+  **feature più importante** ("lo stop-and-go costa"). Toglierlo distruggerebbe il segnale. I segmenti
+  degeneri (quasi-sosta, distanza ~0) sono già scartati a livello di segmento (`seg_distance_m ≥
+  0,5·SEG_LEN` + `maf_per_km` finito) — non serve farlo per riga.
+- **Raccomandazione:** **un solo dataset filtrato com'è.** Conserva tutte soste/idle/stop-and-go per
+  entrambi i task e rimuove ~1,8% di righe morte. Due dataset = più complessità, zero guadagno, rumore-
+  parcheggi nel clustering. L'unico affinamento *opposto* sensato sarebbe escludere meglio i parcheggi
+  dal clustering, ma il filtro ≥50 passaggi + feature cinematiche lo gestisce già in gran parte.
+
+## 32. Non conveniva fare il binning a 2 decimali (più preciso)?
+**D:** A 2 decimali sarebbe stato molto più preciso, no?
+**R:** **Invertito: meno decimali = celle più GRANDI = MENO preciso.** I 4 decimali attuali sono la
+scelta *più* fine, non meno. Scala (lat ~42,3°N, lon × cos≈0,74):
+- **2 dec** (0,01°) → **~1,1 km × 0,82 km** = un **intero quartiere**/cella (autostrada+residenziale+
+  incrocio mescolati) → clustering senza senso.
+- **3 dec** (0,001°) → ~111 m × 82 m (un isolato).
+- **4 dec** (0,0001°) → **~11 m × 8 m** ← attuale (uno spezzone di strada).
+- **5 dec** → ~1,1 m, sotto il **rumore GPS** (~5-10 m) → solo rumore.
+- **Limite vero = sorgente, non i decimali:** GPS ~5-10 m (scendere sotto ~11 m non aggiunge info); per
+  lo **slope** il limite è SRTM ~30 m + quota campionata a **3 dec (~111 m)** nel NB1 → è quello a
+  indebolire la pendenza, non il bin del clustering.
+- **Unico cambio difendibile = direzione opposta:** passare a **3 decimali (~111 m)** darebbe più
+  campioni/cella e meno scarto (oggi il filtro ≥50 butta ~72% delle celle perché a 11 m sono minuscole),
+  al prezzo di mescolare più strada nella stessa cella. Compromesso, non un "meglio" netto → **4 decimali
+  vanno bene**.
+- ⚠️ **Attenzione (vedi #33):** ci sono **due arrotondamenti diversi** — il **bin del clustering** (NB3)
+  è a **4 decimali ~11 m**; il **campionamento della quota** per l'API (NB1) è a **3 decimali ~111 m**.
+
+## 33. Allora la quota non conveniva farla a 4 decimali (più precisa)?
+**D:** Hai fatto la quota a 3 decimali con l'API; non era meglio 4 (più preciso)?
+**R:** Giusto, l'API quota è a **3 decimali** (`ROUND_DECIMALS=3`, ~111 m) — da non confondere col **bin
+del clustering** che è già a **4 decimali** (~11 m). Sulla **quota**, 4 decimali **non** avrebbe aiutato,
+e il NB1 §6 lo spiega:
+- **Limite = sorgente, non decimali:** dietro Open-Meteo c'è **SRTM ~30 m**; punti < 30 m cadono nello
+  **stesso pixel** → stessa quota. A 4 dec (~11 m) **ricampioni lo stesso pixel** → i nuovi Δquota sono
+  **rumore di interpolazione**, non salite (sembrerebbe segnale → peggio).
+- **Costo:** `round(4)` → ~282k punti → ~2800 batch → **>45 min** (+ rate-limit); `round(3)` → ~8.700
+  punti → ~88 batch → **1-2 min**. Stessa info utile, 32× più veloce.
+- **Ann Arbor piatta:** range quota di tutta la città **223–324 m ≈ 101 m** → niente slope da recuperare.
+- **Vera soluzione (non più decimali):** DEM ad alta risoluzione (LiDAR USGS 3DEP 1 m) o città collinare.
+  Collega a [[#11]] (quota ricavata noi, dedup a 3 dec) e [[#12]] (rimpicciolire le celle non recupera lo slope).
+
+## 34. La quota è in metri o feet? A volte fa "drop assurdi" — abbiamo sbagliato le unità?
+**D:** Siamo sicuri che `elevation_m` sia in metri e non feet? A volte ci sono cali di quota assurdi.
+**R:** **È in metri, nessun errore di unità** (verificato sui dati reali):
+- Quota media **268,8 m**, range **223–324 m**. Ann Arbor reale ≈ **256 m s.l.m. (840 ft)** → **combacia**.
+  In **feet** la media (269 ft) sarebbe **82 m** → impossibile. Open-Meteo/SRTM dà sempre metri.
+- I "**drop assurdi**" **non sono un bug**, sono **quantizzazione**: la quota è **a gradini interi** (102
+  valori distinti = ~1 per metro). Tra punti consecutivi **dz = 0 nel 91,9%** (stesso blocco ~111 m); al
+  confine di blocco salta tutta la differenza in un colpo → `p99 |dz| = 30 m`, **max |dz| = 94 m** (quasi
+  tutta l'escursione cittadina di 101 m in un passo → non è un dirupo, è il gradino SRTM / a volte salto GPS).
+- Per questo lo `slope` è **clippato a ±0,3** → il **2,5%** delle righe ci sbatte (sono proprio quei drop).
+- **Morale:** sembrano assurdi *perché* Ann Arbor è piattissima (101 m totali) → ogni gradino è una fetta
+  enorme del rilievo. È il **limite della sorgente quota**, non un errore metri/feet. Collega [[#33]], [[#10]].
+
+## 35. Le TRE griglie/unità del progetto + cosa vuol dire "arrotondare a N decimali"
+**D:** Se i blocchi quota sono 111×82, allora dire che il segmento stradale è 11×8 è sbagliato? E perché
+non posso scegliere una griglia 10×10? Cosa significa arrotondare al 3°/4° decimale?
+**R:** **Niente è sbagliato: sono griglie diverse.** Attenzione a non confondere TRE "pezzi":
+| Unità | Come | Dimensione | Dove |
+|---|---|---|---|
+| **Segmento NB2** | ~250 m *lungo* la traiettoria (distanza cumulata) | 250 m lineari | consumo (NB2) |
+| **Cella di clustering** | `round(4)` su lat/lon | **~11×8 m** | tratti stradali (NB3-A) |
+| **Blocco quota** | `round(3)` su lat/lon | **~111×82 m** | elevation (NB1) |
+- **Arrotondare a N decimali = agganciare la coordinata alla griglia più vicina con passo 10⁻ᴺ gradi.**
+  Tutti i punti nello stesso quadretto → stesso valore → stessa cella. 1° lat ≈ 111.320 m, quindi ogni
+  decimale **divide per 10**: 2 dec=1,1 km · 3 dec=111 m · 4 dec=11 m · 5 dec=1,1 m. **Solo scatti ×10**,
+  niente in mezzo. Rettangolare (11×8, non 11×11) perché la longitudine vale `cos(42,3°)≈0,74` della latitudine.
+- **Un blocco quota (111 m) contiene ~100 celle di clustering (11 m)** → ~100 celle vicine condividono la
+  STESSA quota → altro motivo per cui `slope_mean` è debole a scala 11 m.
+- **Posso scegliere 10×10 (o 30×30)?** Sì, ma NON con `.round()`: serve uno **snap metrico**
+  `round(coord/step)*step` con `step = metri/111320` (e `/cos(lat)` per la longitudine). `.round()` è solo
+  la scorciatoia comoda incatenata ai passi ×10. Vedi [[#6]], [[#32]], [[#33]].
+
+## 36. Tentativo griglia quota a 30 m — esplorato e ANNULLATO (2026-06-17)
+**D:** Facciamo la quota a 30 m (= risoluzione nativa SRTM) così magari migliora lo slope anche negli altri NB?
+**R:** Idea **giusta in direzione** (i 111 m attuali sono più grossi di SRTM → buttano dettaglio reale), e
+costo verificato: ~**54.591 punti** a 30 m. **Annullato** prima della presentazione perché:
+- **Tempo reale ~1,5–2 h:** l'API gratuita Open-Meteo limita ~500–600 coordinate/min → 429 ricorrenti
+  (attese di 60s; più tentativi `(n/12)` = il limite non si è ancora liberato; arrivare a 12 = tetto
+  orario/giornaliero → lo script si ferma, ma è **resumable**, salva ogni batch). Poi servirebbe rieseguire NB1+NB2+NB3.
+- **Guadagno marginale:** Ann Arbor è piatta (101 m) + SRTM ha errore verticale ~6–16 m → lo slope resterebbe
+  comunque secondario, e a 30 m alcuni Δquota nuovi sarebbero **rumore** (slope finti).
+- **Decisione:** ripristinato tutto a 111 m (`ROUND_DECIMALS=3`) dai commit/backup; `ved_enriched.parquet`
+  non era stato toccato. Resta un ottimo **sviluppo futuro citabile** ("allineare il campionamento ai 30 m
+  nativi SRTM, o usare un DEM LiDAR 1 m"). Collega [[#33]], [[#12]].
+
+## 37. Vocabolario NB3: `agg`, media/std/abs, `stop_fraction`
+**D:** Cos'è `agg`? Cosa vogliono dire media/abs/std e la frazione di sosta?
+**R:**
+- **`agg`** = il **DataFrame delle celle** (NB3-A): `df.groupby(['lat_bin','lon_bin']).agg(...)` trasforma
+  17,9M righe → ~281k celle (1 riga = 1 cella ~11×8 m), con medie/varianze del comportamento per cella. È
+  **l'input del clustering**. Catena: `agg` → filtro ≥50 → ~77k → `agg_clean` (dropna) → K-Means. Calcola
+  anche `maf/rpm/load_mean` ma **non** entrano nei cluster (solo `maf_mean_descr` descrittiva dopo).
+- **media** = somma/conteggio (valore tipico). **std** = quanto i valori sono sparsi attorno alla media
+  (basso=regolare, alto=ballerino). **abs** = grandezza senza segno (`|−3|=3`).
+- **Perché `accel_abs_mean` e non solo media:** su un tratto misto la media dell'accelerazione ≈ 0 (i +
+  e − si annullano) → nasconde la guida a strappi. Prendendo prima il valore assoluto si misura
+  l'**intensità** (accelerate+frenate), che non si annulla. `std` cattura la stessa "nervosità" come dispersione.
+- **`stop_fraction`** = `(speed < 2).mean()` = **frazione di campioni praticamente fermi** (0–1). Trucco:
+  media di Vero/Falso = proporzione di Veri. `<2` (non `=0`) per il rumore del sensore. Letture: 0=scorrevole,
+  ~0,2=stop-and-go, ~0,5–0,8=incrocio/semaforo. È la feature **più importante del NB2** e quella che riconosce
+  gli incroci nel NB3.
+
+## 38. Il MAF è l'apertura della farfalla e il Load è quanto premi l'acceleratore?
+**D:** Quindi MAF = apertura del corpo farfallato e Load = quanto premi l'acceleratore?
+**R:** **No, due correzioni** — sono entrambi *misure di risposta del motore*, non posizioni di pedale/farfalla:
+- **MAF** = **massa d'aria che entra davvero** nel motore (g/s, da sensore). Non è la valvola: l'apertura
+  farfalla *influenza* il MAF, ma il MAF è il **risultato** misurato. Proxy del consumo (aria ≈ benzina, ~14,7:1).
+- **Load** (`Absolute_Load_pct`) = **quanto lavora il motore in % del max** (carica d'aria per ciclo
+  normalizzata). Correla col pedale ma è lo **sforzo effettivo del motore**, non la posizione del pedale.
+- **Richiesta vs risposta:** pedale (richiesta) → farfalla si apre → MAF ↑ (aria) → Load ↑ (sforzo) → più benzina.
+  Né MAF né Load sono il pedale/farfalla; e nel VED **non** c'è la posizione di pedale o farfalla (solo MAF/RPM/Load).
+- Analogia bici: RPM=cadenza, Load=quanto spingi (sforzo %), MAF=calorie/s (consumo). Dettaglio in [[#13]].
+
+## 39. Heatmap dei cluster (NB3): non si vede `slope_mean` né il MAF descrittivo
+**D:** Nella heatmap dei 4 cluster non compaiono `slope_mean` e la colonna descrittiva del MAF.
+**R:** Due cause distinte:
+- **`slope_mean` invisibile = bug del `.round(2)`.** `cluster_profile` fa `.mean().round(2)`, ma lo slope
+  vale ~0,00x → arrotondato diventa **0.00 per tutti e 4 i cluster** (verificato: 0.0/-0.0/-0.0/0.0) →
+  varianza 0 tra cluster → lo z-score divide per std=0 → **NaN → riga vuota**. **Fix:** calcolare lo
+  z-score della heatmap dalle medie **NON arrotondate** (`agg_clean.groupby('cluster')[...].mean()`),
+  non da `cluster_profile`. (La tabella `cluster_profile` può restare arrotondata, serve solo a leggere.)
+- **`maf_mean_descr` assente = voluto.** La heatmap plottava solo `FEATURES_CLUSTER` (le 7 che *formano*
+  i cluster); il MAF è descrittivo. **Fix:** aggiunto come **riga extra separata da una linea**
+  (`ax.axhline(len(FEATURES_CLUSTER))`), etichettata "non di clustering".
+- **Lettura onesta:** dopo il fix `slope_mean` compare ma è **quasi piatto** tra i cluster (z-score piccoli)
+  → conferma che il terreno non separa i tipi di strada. `maf_mean_descr` invece è **molto marcato**
+  (autostrada caldo ~16,7, incrocio freddo ~6,3) → i cluster cinematici differiscono anche nel consumo =
+  risultato, non tautologia [[#15]] [[#16]]. **Da rieseguire la cella heatmap.**
