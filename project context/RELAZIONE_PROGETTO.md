@@ -144,14 +144,16 @@ rimossi.)*
 Output: `consumption_model.joblib`, `consumption_results.csv`.
 
 ### NB3 — `03_unsupervised_context_and_styles.ipynb` (contesto stradale + stili di guida)
-**Parte A — tratti stradali:** celle spaziali, filtro ≥50 passaggi, **StandardScaler** (con
-dimostrazione del fallimento senza), **Elbow + Silhouette**, **K-Means++**, heatmap, **PCA**,
-**t-SNE**, mappa Folium. *(Criticità: celle a 4 dec ≈ 11 m, non 50 m.)*
-**Parte B — stili di guida × powertrain (nuova):** clustering dei **guidatori** (`VehId`) sulla sola
-**cinematica** (velocità/accel/soste, niente MAF → valida per tutti i powertrain). Confronto
-**stile × EngineType** con **chi-quadro**; per i soli ICE, relazione **stile → consumo**; più il
-**confronto energetico** (motore-spento-in-marcia: ICE 0%, HEV 21%, PHEV 24%; firma della **frenata
-rigenerativa**). È qui che "si tiene conto dei tre veicoli".
+**Parte A — tratti stradali:** celle spaziali (~11×8 m), filtro ≥50 passaggi, **StandardScaler** (con
+dimostrazione del fallimento senza), **Elbow + Silhouette**, **K-Means++**, heatmap, **PCA**, mappa
+Folium interattiva. Feature di clustering = **solo cinematica + geometria** (il consumo `maf_mean` è
+solo colonna *descrittiva*). Output: `road_segment_clusters.parquet`, `cluster_profile.csv`, mappe.
+**Parte B — stili di guida:** clustering dei **guidatori** (`VehId`) sulla sola **cinematica**
+(velocità/accel/soste, niente MAF → valida per tutti i powertrain), con heatmap, naming e **PCA**.
+*(Sfoltita il 17/06: il test **chi-quadro** stile×powertrain, la relazione **stile → consumo** ICE e il
+**confronto energetico** — motore-spento-in-marcia ICE 0% / HEV 21% / PHEV 24%, frenata rigenerativa —
+sono stati **rimossi dal notebook** e restano **sviluppi citabili**. Il "perché gli ibridi non entrano
+nel modello di consumo" è comunque argomentato in §5.1.)*
 
 ---
 
@@ -217,11 +219,11 @@ Il modello *hurdle* resta un buon **sviluppo futuro** se si dispone di un datase
 (TPE), MAE/RMSE/MAPE/R², feature importance, data leakage & split temporale.
 *(Nota: il NB2 è stato snellito a soli modelli XGBoost → la regolarizzazione L1/L2 e Random Forest
 non sono più nel progetto. Reintegrabili tenendo un Lasso se serve coprirli.)*
-**Unsupervised:** K-Means/K-Means++, elbow, silhouette, StandardScaler motivato, PCA con
-loadings, t-SNE.
+**Unsupervised:** K-Means/K-Means++, elbow, silhouette, StandardScaler motivato, PCA con loadings.
 → Restano **fuori dal progetto** il **deep learning** (autoencoder/anomaly detection — il NB4 di
-diagnostica è stato rimosso perché ortogonale al cuore eco-driving) e la **CNN**: argomenti
-studiati ma non applicati qui (nessun caso d'uso a immagini).
+diagnostica è stato rimosso perché ortogonale al cuore eco-driving), la **CNN** (nessun caso d'uso a
+immagini) e — dopo lo sfoltimento del NB3 (17/06) — il **t-SNE** e il **test chi-quadro**: argomenti
+studiati ma non più applicati qui.
 
 ---
 

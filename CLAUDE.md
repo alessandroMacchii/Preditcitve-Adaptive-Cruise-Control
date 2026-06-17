@@ -25,8 +25,10 @@ stradale** (tipologie di tratto) e gli **stili di guida**. Progetto d'esame di A
    ~250 m, **solo ICE** (MAF è proxy valido solo per i termici), feature map-only + anticipazione.
    Esclusi RPM/Load e EngineType.
 3. `03_unsupervised_context_and_styles.ipynb` — **contesto + stili di guida**: Parte A clustering
-   dei tratti stradali (K-Means/PCA/t-SNE/mappa); Parte B clustering dei **guidatori** (cinematica)
-   con confronto **stile × powertrain** (chi-quadro) + confronto energetico ICE/HEV/PHEV.
+   dei tratti stradali (K-Means/PCA/mappa Folium, solo cinematica+geometria); Parte B clustering dei
+   **guidatori** per stile (cinematica, powertrain-agnostica) + PCA. *(Sfoltito il 17/06: rimossi
+   t-SNE, sanity check cluster↔EngineType, test chi-quadro stile×powertrain, stile→consumo, confronto
+   energetico — restano come sviluppi.)*
 
 > **I notebook nuovi non sono ancora stati eseguiti** (lo fa Alex).
 
@@ -63,12 +65,13 @@ dà R² più alto ma fa imparare una scorciatoia e azzera il ruolo della strada.
 - `STATE.md` = stato vivo della pipeline + prossimi passi (**leggere per primo**).
 - `RELAZIONE_PROGETTO.md` = panoramica per l'esame (dataset, criticità, scelte) con numeri reali.
 - `ANALISI_DATI_VED.md` = EDA completa del dataset (numeri reali: schema, distribuzioni, correlazioni, powertrain).
-- `FAQ_DATI_E_MODELLO.md` = spiegazioni semplici (cos'è MAF/slope/fuel trim, map-only, ibridi, skew…) per lo studio.
-- `FILE_DI_OUTPUT.md` = cosa contiene ogni file in `outputs/` e quale notebook lo produce.
-- `GUIDA_CELLE_NB02_NB03.md` = spiegazione cella-per-cella di consumo (NB2) e contesto/stili (NB3).
-- `DISCUSSIONI_E_SVILUPPI.md` = architettura concettuale, perché NON integrare NB3→NB2 naïve
-  (leakage), idee di sviluppo futuro.
+- `discussioni.md` = registro Q&A per il ripasso d'esame (domande di Alex + risposte sintetiche).
+- `notebook_studio_ML_1.md` = ripasso teorico generico di ML (PCA/t-SNE/UMAP, ecc.), non specifico del progetto.
 - `README.md` (in root) = setup utente, aggiornato al reframe e ai 3 notebook.
+
+> **Nota (2026-06-17):** sono stati rimossi da `project context/` i file `FAQ_DATI_E_MODELLO.md`,
+> `FILE_DI_OUTPUT.md`, `GUIDA_CELLE_NB02_NB03.md`, `DISCUSSIONI_E_SVILUPPI.md` (scelta di Alex): se
+> li vedi citati in vecchi documenti, sono puntatori morti.
 
 ## Convenzioni
 - Documentazione di stato in italiano.

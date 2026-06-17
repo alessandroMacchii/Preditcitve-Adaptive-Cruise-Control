@@ -40,7 +40,7 @@ loop consumo↔velocità) e i doc dicono che esisteva per coprire l'argomento d'
 **R:** Tecnicamente sì, ma **meglio separati**:
 - mappano i due blocchi del corso (**supervised** vs **unsupervised**);
 - la separazione fisica **è** la prova del punto anti-leakage (vedi §5);
-- esecuzione/RAM indipendenti (NB2 carica ICE+Optuna, NB3 17,9M righe+t-SNE).
+- esecuzione/RAM indipendenti (NB2 carica ICE+Optuna, NB3 aggrega 17,9M righe).
 - Unirli conviene **solo** se la consegna richiede un singolo file → due sezioni nette.
 
 ## 5. Perché non ho usato i cluster (NB3) come feature nel consumo (NB2)?
@@ -55,8 +55,9 @@ target → **leakage (target encoding mascherato)**. R² gonfiato ma circolare.
 
 ## 6. NB3: perché celle 50×50 m?
 **D:** Perché celle da 50×50 m?
-**R:** **Non sono 50 m — è un refuso nel markdown.** Arrotondare a 4 decimali dà celle da **~11 m
-(N-S) × ~8 m (E-O)**. (1° lat ≈ 111 km → 0,0001° ≈ 11 m; in longitudine × cos(42°) ≈ 8 m.)
+**R:** **Non sono 50 m — era un refuso nel markdown, ✅ corretto il 17/06 (ora dice ~11×8 m).**
+Arrotondare a 4 decimali dà celle da **~11 m (N-S) × ~8 m (E-O)**. (1° lat ≈ 111 km → 0,0001° ≈ 11 m;
+in longitudine × cos(42°) ≈ 8 m.)
 - **Trade-off dimensione cella:** grande → mescola tratti diversi; piccola → poche misure/cella.
 - **Conseguenza (bias di selezione):** celle piccole + filtro ≥50 passaggi → restano solo le
   **strade trafficate** (281.494 → 77.325 celle). Da dichiarare.
@@ -241,7 +242,7 @@ Prova nel notebook: senza scaling `speed_mean` = **91% della varianza**, `slope_
 
 ## 22. Keras nel NB2 invece di sklearn, come nel NB3?
 **D:** Si potrebbe usare Keras nel NB2 come nel terzo notebook?
-**R:** **Premessa errata: il NB3 non usa Keras** — è sklearn (K-Means/PCA/t-SNE). Keras/torch erano
+**R:** **Premessa errata: il NB3 non usa Keras** — è sklearn (K-Means/PCA). Keras/torch erano
 solo del NB4 (rimosso). Si *potrebbe* mettere una MLP, ma è la scelta **sbagliata**: su **dati
 tabellari** il **gradient boosting batte le reti** (prior consolidato); dataset non enorme; perderei
 la **feature importance** (il cuore dell'argomento "strada sì, terreno no"); niente GPU/tuning fragile.
@@ -306,3 +307,30 @@ min MAE → `study.best_params`. Quindi il tuning **c'è già**, più serio di u
 spingere oltre (più trial, range più ampi, early stopping) con rendimenti decrescenti.
 - **Esame:** *"i default sono lo standard; i finali li sceglie Optuna con ottimizzazione bayesiana e CV
   per veicolo — non a caso, ottimizzati."*
+
+---
+
+> **Tornata 2026-06-17 (bis) — sfoltimento del NB3 e allineamento doc.**
+
+## 30. Sfoltimento del NB3: cosa è stato tolto e cosa implica
+**D:** Ho tenuto nel NB3 solo ciò che presento; allinea markdown e file di contesto. Metti tutti gli
+import in un'unica cella.
+**R:** Fatto. **Rimosse** dalla Parte A: t-SNE e il sanity check **cluster↔EngineType**; dalla Parte B:
+test **chi-quadro** stile×powertrain, relazione **stile→consumo** (ICE) e **confronto energetico** tra
+motori. Conseguenze e interventi:
+- **Bug introdotto dalle cancellazioni → corretto:** la cella PCA scatter era rimasta **orfana** (usava
+  `X_pca`/`pca` mai definiti → `NameError`). Ho **ripristinato il calcolo PCA** prima dello scatter
+  (sezione 8) — la PCA è una tecnica che vuoi mostrare e lo scatter era tenuto.
+- **Import consolidati** nella cella `[2]` (tolti i re-import sparsi di `LogNorm`, `StandardScaler`,
+  `KMeans`, `silhouette_score`, `PCA`). `import folium` resta nel `try/except`: è una **dipendenza
+  opzionale**, spostarlo su romperebbe il fallback alla mappa statica.
+- **Refuso "50×50 m" → corretto** in `~11×8 m` (vedi #6).
+- **Narrativa "tre powertrain":** la Parte B ora **profila gli stili** (cinematica, powertrain-agnostica)
+  e mostra la composizione per `EngineType`, ma **non** dimostra più statisticamente "i powertrain sono
+  guidati diversamente" né "perché gli ibridi consumano diverso". Quella tesi resta argomentata nel
+  **NB2 §1** e in `RELAZIONE §5.1`; i tre blocchi tolti sono ora **sviluppi citabili**, non risultati.
+- **All'esame:** se il prof chiede del confronto powertrain, dire che è **documentato concettualmente**
+  ma non più calcolato nel notebook (scelta di scope), non spacciarlo per fatto.
+- **Pendenze residue (per Alex):** `K_FINAL` è **forzato a 4** in `[14]`; restano **due celle di
+  riepilogo** redondanti in fondo (accorpabili); i numeri "Risultato reale" della GUIDA Parte A sono di
+  una run vecchia → da riconfermare rieseguendo.

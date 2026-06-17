@@ -1,8 +1,10 @@
 # STATE.md — Stato corrente del progetto
 
 > Stato vivo della pipeline: **leggere per primo**, aggiornare a ogni modifica rilevante.
-> **Ultimo aggiornamento:** 2026-06-17 (rimosso il NB4 autoencoder/diagnostica dal progetto su scelta di
-> Alex: il progetto resta a **3 notebook**; cancellati notebook + output NB4 e ripuliti i riferimenti).
+> **Ultimo aggiornamento:** 2026-06-17 (NB3 **sfoltito** da Alex: tenuto solo l'essenziale da presentare —
+> rimossi t-SNE, cluster↔EngineType, chi-quadro stile×powertrain, stile→consumo, confronto energetico;
+> import consolidati, PCA ripristinata, doc riallineati. In precedenza: rimosso il NB4
+> autoencoder/diagnostica → il progetto resta a **3 notebook**).
 
 ## Inquadramento attuale
 **"ML per l'energia e il contesto di guida"** sul VED, applicato a un assistente di guida / ACC.
@@ -15,7 +17,7 @@ velocità**; terreno = limite del dato. Quadro completo: `RELAZIONE_PROGETTO.md`
 ```
 [OK]            01_data_prep_and_enrichment.ipynb       eseguito → ved_enriched.parquet (~17,9M righe)
 [OUTPUT STALE]  02_consumption_ecodriving.ipynb         consumo maf_per_km a segmento, SOLO ICE, solo XGBoost
-[OUTPUT STALE]  03_unsupervised_context_and_styles.ipynb  A) tratti stradali  B) stili×powertrain
+[OUTPUT STALE]  03_unsupervised_context_and_styles.ipynb  A) tratti stradali  B) stili di guida (sfoltito 17/06)
 ```
 ⚠️ **Stato output disallineato.** I due notebook NB2/NB3 hanno output già presenti in `outputs/` (modello
 consumo, cluster…), ma sono di una **run del 14/06**, mentre i notebook sono stati **rimodificati e
@@ -60,18 +62,23 @@ road_segment_clusters.parquet  cluster_profile.csv  cluster_map.html  cluster_ma
   (limite dato); la tabella di sensibilità a SEG_LEN; il controfattuale (può dare "eco +X%"
   controintuitivo: è l'entanglement velocità↔stop-and-go, non un bug → la prova forte è la feature
   importance).
-- **NB3 Parte B:** stile × EngineType (chi-quadro: i powertrain sono guidati diversamente?);
-  stile → consumo per gli ICE; confronto energetico (motore-spento, rigenerazione).
-- Naming manuale dei cluster (NB3) dopo aver visto le heatmap (gli `auto_name` sono solo proposte).
+- **NB3 Parte B:** profilo stili sulla cinematica + heatmap + PCA (K_STYLE=3). *(Il test chi-quadro
+  stile×powertrain, stile→consumo ICE e il confronto energetico sono stati rimossi il 17/06 — sviluppi.)*
+- Naming manuale dei cluster (NB3) dopo aver visto le heatmap (`name_cluster` assegna dai valori, è solo
+  una proposta da confermare). **Nota:** in NB3 `K_FINAL` è forzato a **4** (riga finale cella `[14]`).
 
 ## Problemi noti ancora aperti (minori)
 - **NB1:** la prima riga di ogni trip ha `slope`/`accel`=0 (non NaN) per un `np.where` su NaN →
   restano ~26k righe con valori fittizi a 0. Impatto basso. (In NB2 i `dist_m`/`dt_ms` NaN di quelle
   righe sono comunque azzerati prima della segmentazione.)
-- **NB3 Parte A:** le celle a 4 decimali sono ~11 m, non i "50 m" del markdown → correggere il testo
-  o il binning. Con celle piccole il filtro ≥50 passaggi tiene solo le strade molto trafficate.
+- ~~NB3 celle "50 m"~~ **risolto (17/06):** il markdown ora dice ~11×8 m (4 decimali). Con celle così
+  piccole il filtro ≥50 passaggi tiene solo le strade molto trafficate.
 - **PHEV = solo 12 veicoli** (su 299): le conclusioni sui PHEV sono indicative.
-- I notebook NB2/NB3 **da rieseguire** per allineare gli output al codice del 16/06 (gli output
+- **NB3 sfoltito (17/06):** rimossi t-SNE, cluster↔EngineType, chi-quadro stile×powertrain, stile→consumo,
+  confronto energetico; import consolidati in `[2]`; ripristinata la cella PCA (era orfana dopo le
+  cancellazioni); markdown/intro/riepiloghi riallineati. **Restano due celle di riepilogo redondanti**
+  (`[38]` e `[39]`): Alex può accorparle.
+- I notebook NB2/NB3 **da rieseguire** per allineare gli output al codice attuale (gli output
   in `outputs/` sono di una run precedente — vedi nota "Stato output disallineato" sopra).
 
 ## Sviluppi futuri (citabili all'esame)

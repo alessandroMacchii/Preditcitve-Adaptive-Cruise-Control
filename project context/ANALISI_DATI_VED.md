@@ -157,7 +157,8 @@ per il NB2 (lo `stop_fraction` per segmento è risultato il driver dominante del
   per loro **non misura il consumo reale** (manca l'energia elettrica, che il VED non registra). È il
   motivo per cui il modello di consumo (NB2) è **solo-ICE**.
 - Il **MAF in decelerazione** crolla per gli ibridi (5,86 → 2,42 → 1,46): firma della **frenata
-  rigenerativa** (motore spento in rilascio). Materiale per il confronto powertrain nel NB3.
+  rigenerativa** (motore spento in rilascio). *(Era il materiale del confronto energetico powertrain
+  nel NB3, rimosso il 17/06: resta uno sviluppo citabile.)*
 
 ## 15. Implicazioni per il modeling (sintesi)
 
