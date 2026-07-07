@@ -18,19 +18,22 @@ stradale** (tipologie di tratto) e gli **stili di guida**. Progetto d'esame di A
 > alternativi valutati (OBD-II senza GPS, IMU) non risolvevano il problema → si resta su VED.
 > Storia e numeri in `RELAZIONE_PROGETTO.md`.
 
-## I 3 notebook (consolidati 2026-06-14)
-1. `01_data_prep_and_enrichment.ipynb` — carica i parquet VED, EDA, arricchisce con altitudine
-   (Open-Meteo) e calcola pendenza + accelerazione. Output: `outputs/ved_enriched.parquet`.
-2. `02_consumption_ecodriving.ipynb` — **consumo / eco-driving**: predice `maf_per_km` su segmenti
-   ~250 m, **solo ICE** (MAF è proxy valido solo per i termici), feature map-only + anticipazione.
-   Esclusi RPM/Load e EngineType.
-3. `03_unsupervised_context_and_styles.ipynb` — **contesto + stili di guida**: Parte A clustering
-   dei tratti stradali (K-Means/PCA/mappa Folium, solo cinematica+geometria); Parte B clustering dei
-   **guidatori** per stile (cinematica, powertrain-agnostica) + PCA. *(Sfoltito il 17/06: rimossi
-   t-SNE, sanity check cluster↔EngineType, test chi-quadro stile×powertrain, stile→consumo, confronto
-   energetico — restano come sviluppi.)*
+## I 3 notebook (rinominati da Alex il 2026-06-18)
+1. `data prep.ipynb` *(ex `01_data_prep_and_enrichment.ipynb`)* — carica i parquet VED, EDA,
+   arricchisce con altitudine (Open-Meteo) e calcola pendenza + accelerazione.
+   Output: `outputs/ved_enriched.parquet`.
+2. `predizione consumo.ipynb` *(ex `02_consumption_ecodriving.ipynb`)* — **consumo / eco-driving**:
+   predice `maf_per_km` su segmenti ~250 m, **solo ICE** (MAF è proxy valido solo per i termici),
+   20 feature map-only + anticipazione. Esclusi RPM/Load e EngineType. *(Sfoltito il 18/06: rimossi
+   Pipeline/ColumnTransformer/StandardScaler, sensibilità SEG_LEN, controfattuale eco/sport,
+   diagnostica/salvataggio — non salva più file in `outputs/`.)*
+3. `clustering.ipynb` *(ex `03_unsupervised_context_and_styles.ipynb`)* — **contesto + stili di
+   guida**: Parte A clustering dei tratti stradali (K-Means/PCA/mappa Folium, solo
+   cinematica+geometria); Parte B clustering dei **guidatori** per stile (cinematica,
+   powertrain-agnostica) + PCA. *(Sfoltito il 17/06: rimossi t-SNE, sanity check cluster↔EngineType,
+   test chi-quadro stile×powertrain, stile→consumo, confronto energetico — restano come sviluppi.)*
 
-> **I notebook nuovi non sono ancora stati eseguiti** (lo fa Alex).
+> Stato di esecuzione e cosa manca da committare: vedi `STATE.md` (i notebook li esegue Alex).
 
 ## La decisione che definisce il progetto: modello "MAP-ONLY"
 Il NB2 usa **solo feature note in anticipo a un ACC** (velocità, accelerazione, pendenza
@@ -56,10 +59,11 @@ dà R² più alto ma fa imparare una scorciatoia e azzera il ruolo della strada.
   `groupby(['VehId','Trip']).shift(-1)` (segmento successivo), mai guardando indietro. Deve
   entrare il futuro di strada/velocità, MAI il MAF futuro (target).
 - **Cache elevation**: `build_elevation_cache.py` è resumabile (salva dopo ogni batch).
-  La cella 18 del NB1 scarica solo i punti mancanti e solleva se la cache resta incompleta.
+  La cella elevation del NB1 (§6) scarica solo i punti mancanti e solleva se la cache resta incompleta.
   Open-Meteo è **gratuita, no API key**; l'unico vincolo è il rate-limit 429 (già gestito).
-- **Controfattuale NB2**: scalare in modo coerente tutte le `SPEED_COLS` (`speed_mean/max/min/std`,
-  `entry_speed`, `accel_abs_mean`); le feature di strada/`next_*` restano fisse.
+- **Controfattuale NB2** *(rimosso il 18/06; vale se reintrodotto)*: scalare in modo coerente tutte le
+  `SPEED_COLS` (`speed_mean/max/min/std`, `entry_speed`, `accel_abs_mean`); le feature di
+  strada/`next_*` restano fisse.
 
 ## File di contesto (in `project context/`, leggerli secondo necessità)
 - `STATE.md` = stato vivo della pipeline + prossimi passi (**leggere per primo**).
@@ -68,6 +72,10 @@ dà R² più alto ma fa imparare una scorciatoia e azzera il ruolo della strada.
 - `discussioni.md` = registro Q&A per il ripasso d'esame (domande di Alex + risposte sintetiche).
 - `notebook_studio_ML_1.md` = ripasso teorico generico di ML (PCA/t-SNE/UMAP, ecc.), non specifico del progetto.
 - `README.md` (in root) = setup utente, aggiornato al reframe e ai 3 notebook.
+- `esercitazione/` (in root) = esercitazione MLOps sul progetto: `README.md` (problema, dati,
+  ciclo di vita ML, monitoring), `DECISION_LOG.md` (decisioni D1–D12 con alternative e motivi),
+  `HANDOVER.md` (processo, ruoli, trappole), `ONBOARDING.md` (checklist giorno 1, convenzioni,
+  definition of done, glossario, estensioni).
 
 > **Nota (2026-06-17):** sono stati rimossi da `project context/` i file `FAQ_DATI_E_MODELLO.md`,
 > `FILE_DI_OUTPUT.md`, `GUIDA_CELLE_NB02_NB03.md`, `DISCUSSIONI_E_SVILUPPI.md` (scelta di Alex): se
