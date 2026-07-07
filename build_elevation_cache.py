@@ -1,23 +1,23 @@
-"""Costruisce outputs/elevation_cache.parquet in modo RESUMABLE.
+"""Builds outputs/elevation_cache.parquet in a RESUMABLE way.
 
-Salva la cache dopo ogni batch: se lo script muore (timeout, 429, rete), basta
-rilanciarlo e riprende dai soli punti mancanti. Una volta completa, il Notebook 1
-la carica e salta del tutto le chiamate API.
+Saves the cache after each batch: if the script dies (timeout, 429, network), just
+re-launch it and it resumes from the missing points only. Once complete, Notebook 1
+loads it and skips the API calls entirely.
 
-Uso:  ./.venv/Scripts/python.exe build_elevation_cache.py
+Usage:  ./.venv/Scripts/python.exe build_elevation_cache.py
 """
 import glob
 import time
 from pathlib import Path
 
 import truststore
-truststore.inject_into_ssl()  # verifica SSL via trust store del SO
+truststore.inject_into_ssl()  # SSL verification via the OS trust store
 import requests
 import numpy as np
 import pandas as pd
 
-ROUND_DECIMALS = 3            # ~111 m, coerente con SRTM (deve combaciare col Notebook 1)
-BATCH_SIZE = 100             # max consentito da Open-Meteo
+ROUND_DECIMALS = 3            # ~111 m, consistent with SRTM (must match Notebook 1)
+BATCH_SIZE = 100             # max allowed by Open-Meteo
 SLEEP_BETWEEN = 1.5
 RATE_LIMIT_WAIT = 60
 URL = "https://api.open-meteo.com/v1/elevation"
@@ -39,14 +39,14 @@ def unique_coords():
 
 
 def fetch_one(params):
-    """GET con attesa paziente sul 429. Ritorna lista elevazioni o solleva."""
+    """GET with patient waiting on the 429. Returns a list of elevations or raises."""
     last_err = None
     for attempt in range(12):
         try:
             r = requests.get(URL, params=params, timeout=30)
             if r.status_code == 429:
                 wait = int(r.headers.get("Retry-After", 0)) or RATE_LIMIT_WAIT
-                print(f"    429: attendo {wait}s ({attempt+1}/12)...", flush=True)
+                print(f"    429: waiting {wait}s ({attempt+1}/12)...", flush=True)
                 time.sleep(wait)
                 last_err = "429"
                 continue
@@ -55,14 +55,14 @@ def fetch_one(params):
         except requests.exceptions.RequestException as e:
             last_err = e
             time.sleep(2 * (2 ** min(attempt, 5)))
-    raise RuntimeError(f"Batch fallito: {last_err!r}")
+    raise RuntimeError(f"Batch failed: {last_err!r}")
 
 
 def main():
     coords = unique_coords()
-    print(f"Punti unici (round {ROUND_DECIMALS}): {len(coords):,}", flush=True)
+    print(f"Unique points (round {ROUND_DECIMALS}): {len(coords):,}", flush=True)
 
-    # Riprendi: parti dalla cache esistente, tieni solo le elevazioni valide
+    # Resume: start from the existing cache, keep only the valid elevations
     if CACHE.exists():
         prev = pd.read_parquet(CACHE)
         prev = prev[prev["elevation_m"].notna()]
@@ -72,10 +72,10 @@ def main():
         done["elevation_m"] = np.nan
 
     todo = done[done["elevation_m"].isna()].reset_index(drop=True)
-    print(f"Gia' in cache: {len(done)-len(todo):,} | Da scaricare: {len(todo):,}", flush=True)
+    print(f"Already in cache: {len(done)-len(todo):,} | To download: {len(todo):,}", flush=True)
 
     if len(todo) == 0:
-        print("Cache gia' completa.", flush=True)
+        print("Cache already complete.", flush=True)
         done.to_parquet(CACHE, index=False)
         return
 
@@ -89,15 +89,15 @@ def main():
         elevs = fetch_one(params)
         done.loc[batch.index, "elevation_m"] = elevs[:len(batch)]
 
-        # salvataggio incrementale -> resumable
+        # incremental save -> resumable
         done.to_parquet(CACHE, index=False)
         if bi % 5 == 0 or bi == n_batches:
             valid = done["elevation_m"].notna().sum()
-            print(f"  batch {bi}/{n_batches} | validi {valid:,}/{len(done):,}", flush=True)
+            print(f"  batch {bi}/{n_batches} | valid {valid:,}/{len(done):,}", flush=True)
         time.sleep(SLEEP_BETWEEN)
 
     valid = done["elevation_m"].notna().sum()
-    print(f"FATTO. Elevazioni valide: {valid:,}/{len(done):,} | "
+    print(f"DONE. Valid elevations: {valid:,}/{len(done):,} | "
           f"range {done['elevation_m'].min():.0f}-{done['elevation_m'].max():.0f} m", flush=True)
 
 
