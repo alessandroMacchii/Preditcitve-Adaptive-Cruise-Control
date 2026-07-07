@@ -1,16 +1,24 @@
 # STATE.md — Stato corrente del progetto
 
 > Stato vivo della pipeline: **leggere per primo**, aggiornare a ogni modifica rilevante.
-> **Ultimo aggiornamento:** 2026-06-17 (sessione lunga). NB3 **sfoltito** (rimossi t-SNE,
-> cluster↔EngineType, chi-quadro stile×powertrain, stile→consumo, confronto energetico; import consolidati,
-> PCA ripristinata); **fix heatmap** (z-score dalle medie non arrotondate, `slope_mean` non spariva più +
-> riga `maf_mean_descr`); **salvataggio NB3 snellito** (solo `cluster_profile.csv` + `cluster_map.html`);
-> tabelle colonne in `ANALISI_DATI_VED.md` (§2.1/2.2/2.3); voci #30–#39 in `discussioni.md`. **Esplorata e
-> ANNULLATA** la griglia quota a 30 m (vedi `discussioni.md` #36). In precedenza: NB4 rimosso → **3 notebook**.
+> **Ultimo aggiornamento:** 2026-07-07. La cartella `esercitazione/` era **sparita da disco** ed è
+> stata **rigenerata** (stessi 4 file), integrando i concetti delle slide del corso UFS14
+> (SDLC/Agile/DevOps/MLOps/testing — PDF in root). Scoperto inoltre che il **`.venv` è rotto**
+> (vedi problemi noti). In precedenza (02/07): allineato allo stato reale su disco dopo il lavoro di Alex
+> del **18/06**: i 3 notebook sono stati **rinominati** (`01_...` → `data prep.ipynb`, `02_...` →
+> `predizione consumo.ipynb`, `03_...` → `clustering.ipynb`) e **modificati**. Il NB2 è stato
+> **sfoltito**: rimossi Pipeline/ColumnTransformer/StandardScaler (XGBoost lavora direttamente sulle
+> colonne), la cella di sensibilità a SEG_LEN, il controfattuale eco/sport e la sezione
+> diagnostica/salvataggio (→ **non produce più** `consumption_model.joblib` né i csv). I fix heatmap
+> del NB3 (z-score da medie non arrotondate + `maf_mean_descr`) risultano **applicati ed eseguiti**.
+> Corrette (02/07) le voci di `discussioni.md` che citavano cose rimosse dal NB2 (#23, #42, #43).
+> Creata (02/07) la cartella **`esercitazione/`** (README + DECISION_LOG D1–D12 + HANDOVER +
+> ONBOARDING): risposta all'esercitazione MLOps, costruita sulla storia reale del progetto.
 >
-> ⚠️ **Lavoro NON committato (per la prossima sessione):** `03_..ipynb` (fix heatmap + salvataggio) e i
-> file di contesto `ANALISI_DATI_VED.md`, `STATE.md`, `discussioni.md`. NB1 è pulito (= HEAD). Vanno
-> **rieseguiti i fix del NB3** e committato il tutto.
+> ⚠️ **Lavoro NON committato:** la rinomina dei 3 notebook (git li vede come 3 delete + 3 untracked),
+> le modifiche ai notebook stessi, `discussioni.md` (voci #40–#43 + correzioni 02/07), questo STATE.md,
+> CLAUDE.md e README.md (aggiornati ai nuovi nomi). Inoltre `predizione consumo.ipynb` è **eseguito solo
+> in parte** (5/23 celle con output): va **rieseguito per intero** prima di committare.
 
 ## Inquadramento attuale
 **"ML per l'energia e il contesto di guida"** sul VED, applicato a un assistente di guida / ACC.
@@ -19,33 +27,39 @@ Due pilastri: **consumo/eco-driving** · **contesto + stili di guida**. Il terre
 velocità**; terreno = limite del dato. Quadro completo: `RELAZIONE_PROGETTO.md`; dati:
 `ANALISI_DATI_VED.md`; ripasso Q&A: `discussioni.md`.
 
-## Pipeline — i 3 notebook
+## Pipeline — i 3 notebook (rinominati il 18/06, rinomina NON committata)
 ```
-[OK, committato]     01_data_prep_and_enrichment.ipynb        eseguito → ved_enriched.parquet (~17,9M righe)
-[DA VERIFICARE]      02_consumption_ecodriving.ipynb          consumo maf_per_km a segmento, SOLO ICE, solo XGBoost
-[RUN OK, FIX DA RIESEGUIRE] 03_unsupervised_context_and_styles.ipynb  A) tratti  B) stili (sfoltito 17/06)
+[RUN OK, DA COMMITTARE]      data prep.ipynb            (ex 01_data_prep_and_enrichment)  13/13 celle eseguite → ved_enriched.parquet (~17,9M righe)
+[SFOLTITO, DA RIESEGUIRE]    predizione consumo.ipynb   (ex 02_consumption_ecodriving)    solo 5/23 celle eseguite; solo XGBoost, 20 feature
+[RUN OK, DA COMMITTARE]      clustering.ipynb           (ex 03_unsupervised_context_and_styles)  18/19 celle eseguite, fix heatmap applicati, K=4
 ```
-**Stato (17/06, fine sessione):**
-- **NB1** rieseguito e **committato** (ha gli output, incl. grafico slope). Pulito = HEAD.
-- **NB3** rieseguito oggi a **K=4** (cluster: incrocio/urbano-misto/scorrevole/autostrada; output reali nel
-  notebook committato). **MA** ci sono **fix non committati** (heatmap z-score + salvataggio snellito) →
-  **rieseguire** quelle celle e **ricommittare**.
-- **NB2:** verificare che sia stato rieseguito col codice attuale (solo-XGBoost). Se in dubbio, rieseguirlo.
+**Stato (02/07):**
+- **NB1 (`data prep.ipynb`)**: rieseguito il 18/06 con piccole modifiche (rimosse celle EDA distribuzioni
+  §4, refactor cella elevation con `ROUND_DECIMALS=3`, nuova cella di sanity finale).
+- **NB3 (`clustering.ipynb`)**: fix heatmap **applicati ed eseguiti**; K=4 (incrocio/urbano-misto/
+  scorrevole/autostrada); salva solo `cluster_profile.csv` + `cluster_map.html` (in `outputs/`, 17/06).
+- **NB2 (`predizione consumo.ipynb`)**: sfoltito il 18/06 (vedi nota in testa) e **da rieseguire per
+  intero** (Optuna ~15–30 min). Non salva più modello/csv.
 - I notebook **li esegue Alex** nel kernel del `.venv`.
 
-`outputs/` — file utili:
+`outputs/` — file attesi dopo le run:
 ```
 ved_enriched.parquet           (input di tutti, dalla run NB1)   elevation_cache.parquet
-consumption_model.joblib       consumption_results.csv          consumption_seglen_sensitivity.csv   [NB2]
-cluster_profile.csv            cluster_map.html                                                       [NB3]
+cluster_profile.csv            cluster_map.html                  [NB3]
 ```
-> **NB3 salva solo l'essenziale (scelta di Alex):** `cluster_profile.csv` (profilo+nome dei cluster) e
-> `cluster_map.html` (mappa interattiva). **Non** salva più `road_segment_clusters.parquet` né
-> `cluster_map_static.png`. Orfani da cancellare se ancora su disco: quei due + `anomaly_scores.parquet`
-> e `telemetry_autoencoder.keras` (residui del NB4 rimosso).
+> **Il NB2 non salva più nulla** (sezione diagnostica/salvataggio rimossa il 18/06): i vecchi
+> `consumption_model.joblib` / `consumption_results.csv` / `consumption_seglen_sensitivity.csv`, se
+> ricompaiono su disco, sono orfani. Altri orfani storici da cancellare se presenti:
+> `road_segment_clusters.parquet`, `cluster_map_static.png`, `anomaly_scores.parquet`,
+> `telemetry_autoencoder.keras` (residui del NB4 rimosso).
 
 ## Ambiente
 - Interprete: `./.venv/Scripts/python.exe`.
+- ⚠️ **`.venv` ROTTO (rilevato 07/07):** punta a un Python gestito da `uv` che non esiste più
+  (`No Python at ...uv\python\cpython-3.12.12...`). Anche `uv run` fallisce per lo stesso motivo.
+  Da ricreare prima di rieseguire i notebook: `python -m venv .venv` +
+  `pip install -r requirements.txt` (o `uv python install` e poi ricreare). Il Python di sistema
+  funzionante è il 3.13 del Microsoft Store.
 - GPU (GTX 1660 Super): **non conviene** — modelli/dati piccoli, gran parte è sklearn (CPU). Resta CPU.
 - (`torch`/`keras` erano installati solo per il NB4, ora rimosso: non più necessari.)
 
@@ -71,13 +85,12 @@ cluster_profile.csv            cluster_map.html                                 
 
 ## Cosa verificare dopo l'esecuzione
 - **NB2:** la feature importance — atteso che dominino `stop_fraction` e velocità, terreno ~0,06
-  (limite dato); la tabella di sensibilità a SEG_LEN; il controfattuale (può dare "eco +X%"
-  controintuitivo: è l'entanglement velocità↔stop-and-go, non un bug → la prova forte è la feature
-  importance).
+  (limite dato). *(La tabella di sensibilità a SEG_LEN e il controfattuale eco/sport sono stati
+  rimossi il 18/06: i risultati delle run precedenti restano citabili, vedi `discussioni.md` #23.)*
 - **NB3 Parte B:** profilo stili sulla cinematica + heatmap + PCA (K_STYLE=3). *(Il test chi-quadro
   stile×powertrain, stile→consumo ICE e il confronto energetico sono stati rimossi il 17/06 — sviluppi.)*
 - Naming manuale dei cluster (NB3) dopo aver visto le heatmap (`name_cluster` assegna dai valori, è solo
-  una proposta da confermare). **Nota:** in NB3 `K_FINAL` è forzato a **4** (riga finale cella `[14]`).
+  una proposta da confermare). **Nota:** in NB3 `K_FINAL=4` è fissato nella cella "Scelta finale".
 
 ## Problemi noti ancora aperti (minori)
 - **NB1:** la prima riga di ogni trip ha `slope`/`accel`=0 (non NaN) per un `np.where` su NaN →
@@ -94,9 +107,10 @@ cluster_profile.csv            cluster_map.html                                 
   nativa SRTM) invece dei 111 m attuali. Tutto ripristinato a `ROUND_DECIMALS=3` (NB1 + `build_elevation_cache.py`).
   Motivo: ~2h per il rate-limit API + guadagno marginale su città piatta. **Non rifarlo prima dell'esame**;
   resta sviluppo futuro. Dettagli e numeri in `discussioni.md` #36.
-- **Fix heatmap NB3 (17/06, da committare):** lo z-score si calcola dalle medie **non arrotondate**
-  (`.round(2)` azzerava `slope_mean` → riga NaN); aggiunta riga descrittiva `maf_mean_descr`. Vedi #39.
-- **NB3 da rieseguire** per applicare i fix (heatmap + salvataggio) e poi committare. NB2 da verificare.
+- ~~Fix heatmap NB3~~ **risolto:** applicati ed eseguiti in `clustering.ipynb` (z-score dalle medie
+  non arrotondate + riga `maf_mean_descr`, vedi #39). Resta solo da **committare**.
+- **NB2 (`predizione consumo.ipynb`) da rieseguire per intero** (solo 5/23 celle hanno output), poi
+  committare tutto (rinomina notebook + contesto).
 
 ## Sviluppi futuri (citabili all'esame)
 Controfattuale/ottimizzatore **a parità di tempo** (mostra che "vai piano" non è la risposta) ·

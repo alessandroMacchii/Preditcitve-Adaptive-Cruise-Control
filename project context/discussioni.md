@@ -268,11 +268,19 @@ la **feature importance** (il cuore dell'argomento "strada sì, terreno no"); ni
 
 ## 23. Perché 250 m per segmento?
 **D:** Perché 250 m e non meno/più?
-**R:** **Trade-off** + c'è già la **cella di sensibilità** (sez. 12) che lo verifica. Corti (50-100 m)
+**R:** **Trade-off**, verificato empiricamente con una **cella di sensibilità** (presente nelle versioni
+precedenti del NB2, rimossa nello sfoltimento del 18/06). Corti (50-100 m)
 → statistiche per-segmento rumorose, `maf_per_km` instabile su distanze piccole, orizzonte `next_*`
-inutile. Lunghi (500-1000 m) → **mescolano tratti eterogenei** (arteria + semaforo nella stessa media),
-persa la risoluzione che serve a pianificare. **250 m** ≈ tratto omogeneo ~10-25 s di guida = scala
-fisica della pianificazione di un ACC. Giustificato **dati + dominio**, non a intuito.
+inutile; e **sotto la risoluzione SRTM (~30 m) il dislivello è solo rumore** → un segmento troppo corto
+non aggiunge informazione di terreno, ricade nella tautologia del MAF *istantaneo*. Lunghi (500-1000 m)
+→ **mescolano tratti eterogenei** (arteria + semaforo nella stessa media), persa la risoluzione che serve
+a pianificare. **250 m** ≈ tratto omogeneo ~10-25 s di guida = scala fisica della pianificazione di un ACC,
+**sopra il rumore SRTM** ma ancora fine per l'anticipazione. Giustificato **dati + dominio**, non a intuito.
+- **Conferma empirica (cella sensibilità SEG_LEN ∈ {150, 250, 500}, run della versione pre-18/06):**
+  l'R² resta **stabile** e il peso del **terreno resta debole (~0,06) a tutte le lunghezze** → la scelta
+  di 250 m non è arbitraria e non cambia le conclusioni (il limite è il *dato*, non la granularità).
+  *Nota: la cella è stata rimossa dal notebook il 18/06 (sfoltimento); il risultato resta citabile come
+  analisi fatta.* [[#36]] [[#42]]
 
 ## 24. Cosa fa la cella della sez. 5 (Target e feature, map-only)?
 **D:** Cosa fa la "cella 5"?
@@ -494,3 +502,94 @@ costo verificato: ~**54.591 punti** a 30 m. **Annullato** prima della presentazi
   → conferma che il terreno non separa i tipi di strada. `maf_mean_descr` invece è **molto marcato**
   (autostrada caldo ~16,7, incrocio freddo ~6,3) → i cluster cinematici differiscono anche nel consumo =
   risultato, non tautologia [[#15]] [[#16]]. **Da rieseguire la cella heatmap.**
+
+## 40. Sarebbe stato meglio un modello lineare su questi dati?
+**D:** Visto che il MAF è asimmetrico ed esiste `log_MAF`, non sarebbe stato meglio usare un modello lineare?
+**R:** **No, è il contrario.** Due piani da non confondere:
+- **L'asimmetria riguarda il target, non la scelta del modello.** La log-trasformazione (`log_MAF`) è
+  semmai una **stampella per i modelli lineari** (assumono residui ~normali/omoschedastici) — serve *loro*,
+  non a XGBoost. Quindi quel dettaglio non spinge verso il lineare. [[#38]]
+- **I dati sono fortemente non-lineari + con interazioni:** consumo vs velocità è a U/J (alto in città
+  stop-and-go, minimo in crociera, di nuovo alto in autostrada); `stop_fraction` (feature #1), accel e
+  velocità **interagiscono**. Un lineare cattura solo effetti additivi/lineari → per avvicinarsi servirebbero
+  feature polinomiali e termini d'interazione costruiti **a mano**. XGBoost lo fa **automaticamente** (split +
+  alberi). È il *prior* del progetto: tabellari con non-linearità → gradient boosting. R² ~0,76 map-only.
+- **Quando il lineare sarebbe stato preferibile (onestà):** interpretabilità diretta dei coefficienti;
+  pochi dati (non è il caso, 17,9M righe); **estrapolazione** fuori range (gli alberi non estrapolano, la
+  retta sì); coprire la **regolarizzazione L1/L2** come argomento di corso. Un **Lasso** baseline sarebbe
+  l'unico vero motivo per reintrodurlo (decisione #5 di STATE.md lo aveva rimosso) — **non perché predica
+  meglio**, ma per confronto interpretabile / coprire L1/L2.
+- **Frase per il prof:** *"L'asimmetria del MAF non giustifica un lineare — è il lineare che avrebbe bisogno
+  della log-trasformazione. I dati hanno non-linearità e interazioni forti, quindi il prior corretto su
+  tabellari è il gradient boosting; un Lasso resta utile solo come baseline interpretabile."*
+
+## 41. Cos'è la regressione lineare e a cosa servirebbe invece di XGBoost?
+**D:** Cos'è un modello tipo regressione lineare e a cosa mi servirebbe al posto di XGBoost?
+**R:** **È il modello più semplice per predire un numero:** assume il target come **somma pesata** delle
+feature, `ŷ = w₀ + w₁x₁ + … + wₙxₙ` (es. `maf_per_km ≈ w₀ + w₁·speed_mean + w₂·stop_fraction + …`).
+- **Come impara:** minimi quadrati (OLS) — trova i pesi `w` che minimizzano la somma degli errori al
+  quadrato; geometricamente la retta/iperpiano più vicino ai punti.
+- **Il valore sta nei coefficienti `w`:** **segno** = direzione (`w_stop_fraction>0` → più soste = più
+  consumo), **grandezza** = sensibilità ("+0,1 di stop → +X di maf_per_km, a parità di resto").
+- **Varianti regolarizzate (argomenti di corso):** **Ridge (L2)** rimpicciolisce tutti i coefficienti
+  (multicollinearità); **Lasso (L1)** può **azzerarli** → selezione automatica di feature.
+- **A cosa servirebbe INVECE di XGBoost** (non per predire meglio, ma per ciò che il boosting fa peggio):
+  (1) **interpretabilità diretta** dei coefficienti (XGBoost richiede feature importance/SHAP); (2)
+  **baseline onesta** = il modello da battere (se XGBoost 0,76 vs lineare 0,60 → la non-linearità vale
+  +0,16, dimostrato); (3) **estrapolazione** fuori range (gli alberi danno valore piatto, la retta continua
+  il trend); (4) coprire **L1/L2** nel programma (oggi assenti, decisione #5); (5) pochi dati (non è il caso,
+  17,9M righe).
+- **Il prezzo del lineare:** cattura solo relazioni lineari/additive → la curva a U "consumo vs velocità"
+  la sbaglia senza feature polinomiali (`speed²`) e interazioni (`speed×stop_fraction`) costruite a mano;
+  va scalato; vuole un target più simmetrico (qui rientrerebbe `log_MAF`); sensibile agli outlier.
+- **Mossa giusta nel progetto:** non "lineare *al posto di*" ma un **Lasso come baseline accanto** a XGBoost
+  → copre la regolarizzazione, dà coefficienti leggibili, quantifica quanto vale il boosting. [[#40]]
+
+## 42. Quali sono le feature che diamo a XGBoost (NB2)?
+**D:** Spiegami le feature dentro XGBoost.
+**R:** `FEATURES_NUM` = **20 feature numeriche**, tutte a livello di **segmento ~250 m**, tutte **map-only**
+(note in anticipo a un ACC). *Niente scaling: XGBoost è ad albero → invariante a trasformazioni monotone
+(la Pipeline con StandardScaler c'era nelle versioni precedenti, rimossa il 18/06 — vedi [[#43]]).*
+Quattro gruppi:
+- **Terreno/geometria** (peso totale ~0,06 → limite del dato): `seg_distance_m` (lunghezza),
+  `dz_net` (dislivello netto = elev_end−elev_start), `climb_m`/`descent_m` (metri saliti/scesi cumulati),
+  `slope_mean`, `slope_max_abs`. Scelta: **dislivello cumulato sul segmento**, più robusto dello slope
+  istantaneo spiky/azzerato. [[#36]]
+- **Cinematica** (segnale forte): `speed_mean`, `speed_max`, `speed_min`, `speed_std` (variabilità),
+  `accel_abs_mean` (intensità accel+frenate, l'abs evita che +/− si annullino), `stop_fraction`
+  (frazione quasi-fermi `speed<2` = stop-and-go), `entry_speed` (velocità d'ingresso `first` = energia
+  cinetica ereditata = accoppiamento all'indietro). **Importance:** stop_fraction #1 (~0,13), speed_mean
+  (~0,08), entry_speed (~0,07).
+- **Anticipazione/look-ahead** (cuore "ACC"): `next_dz_net`, `next_slope_mean`, `next_stop_fraction`,
+  via `groupby(['VehId','Trip']).shift(-1)` = info del **segmento successivo**. Entra il futuro di
+  strada/velocità, **MAI il MAF futuro** (sarebbe leakage del target). [[CLAUDE.md trappole]]
+- **Contesto veicolo/ambiente:** `Generalized_Weight` (classe di peso del veicolo), `OAT_DegC`
+  (temperatura esterna → motore freddo/caldo, clima), `hour` e `month` (proxy di traffico/stagione).
+  Nel grafico importance finiscono nel gruppo "cinematica/contesto".
+- **Escluse di proposito:** `Engine_RPM_RPM`, `Absolute_Load_pct`, `rpm_roll10s_mean` (non noti in anticipo
+  + quasi-circolari col MAF ≈ RPM×carico → scorciatoia che azzera il ruolo della strada); `EngineType`
+  (modello solo-ICE → costante). **Target:** `maf_per_km` (efficienza, non distanza). [[#40]]
+
+## 43. Cos'è il ColumnTransformer e perché va con lo StandardScaler?
+**D:** Cos'era il ColumnTransformer e perché sta insieme allo StandardScaler?
+**R:** Sono **due cose distinte**, spesso confuse:
+- **StandardScaler** = *trasforma* le feature a **media 0, std 1** (stessa scala). Serve perché `speed_mean`
+  (decine) e `slope_mean` (~0,00x) hanno scale diversissime.
+- **ColumnTransformer** = il *contenitore* che dice **a quali colonne** applicare quale trasformatore (non
+  scala nulla da solo, orchestra). Caso classico: numeriche→StandardScaler, categoriche→OneHotEncoder,
+  ricomposte in un'unica matrice.
+- **Nel NB2 (versioni fino al 17/06):** `ColumnTransformer([('num', StandardScaler(), FEATURES_NUM)])`
+  = un solo gruppo (le numeriche), niente categoriche (`EngineType` escluso, solo-ICE). **Perché usarlo
+  con un solo trasformatore?** (1) scaffold standard/scalabile (domani aggiungi una categorica con una
+  riga); (2) seleziona esattamente le colonne per nome (non scali ID/target per sbaglio); (3) si incastra
+  nella **Pipeline** col modello. *Il 18/06 lo sfoltimento del NB2 ha rimosso Pipeline/ColumnTransformer/
+  StandardScaler: XGBoost lavora direttamente sulle colonne (vedi Nota onesta sotto). Il concetto resta
+  materia d'esame.* [[#42]]
+- **Perché dentro la Pipeline = anti-leakage:** lo scaler viene **fittato solo sul train** (media/std) e
+  *applicato* a test/fold con quei parametri. Scalare a mano tutto il dataset prima dello split → media/std
+  vedono anche il test → **leakage** → metriche false. La Pipeline lo blinda, soprattutto in CV (GroupKFold,
+  scaler rifittato a ogni fold). [[#22]]
+- **Nota onesta:** XGBoost è ad albero → **invariante a trasformazioni monotone**: lo StandardScaler **non
+  cambia le sue predizioni**. Si teneva per buona pratica/riusabilità (un Lasso, o il K-Means/PCA del NB3
+  lo *richiedono*) — ed è proprio per questo che toglierlo dal NB2 (18/06) è legittimo. Nel NB3 lo scaling
+  resta **obbligatorio** (dimostrazione "senza scaler" esplicita). [[#41]]

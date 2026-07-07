@@ -114,10 +114,10 @@ segmento, controfattuale).
 
 ---
 
-## 4. I 4 notebook — cosa fanno e le scelte chiave
+## 4. I 3 notebook — cosa fanno e le scelte chiave
 
 
-### NB1 — `01_data_prep_and_enrichment.ipynb` (preparazione)
+### NB1 — `data prep.ipynb` (preparazione)
 Consolida i 54 parquet, EDA, **filtro outlier** (Load 0–200%, RPM 0–8000, Speed 0–200, MAF
 0–300), filtro movimento, **arricchimento altitudine** via Open-Meteo (gratuita, no key, SRTM)
 con **dedup a 3 decimali** (~8,7k punti, ~88 batch, cache resumabile), **slope** via Haversine,
@@ -126,12 +126,13 @@ con **dedup a 3 decimali** (~8,7k punti, ~88 batch, cache resumabile), **slope**
 slope/accel. **Criticità note:** prima riga di ogni trip con slope/accel = 0; finestre "in campioni"
 non in secondi (sampling irregolare).
 
-### NB2 — `02_consumption_ecodriving.ipynb` (consumo / eco-driving, solo ICE)
+### NB2 — `predizione consumo.ipynb` (consumo / eco-driving, solo ICE)
 Predice **`maf_per_km` su segmenti da ~250 m** (efficienza, non distanza banale), con feature
 **map-only** + **anticipazione** (`entry_speed` + look-ahead del segmento successivo). **XGBoost
-default e tunato** (Optuna + GroupKFold per VehId), **sensibilità a SEG_LEN (150/250/500)**,
-controfattuale eco/sport. *(Notebook snellito: tenuti solo i due XGBoost; baseline/Ridge/Lasso/RF
-rimossi.)*
+default e tunato** (Optuna + GroupKFold per VehId). *(Notebook snellito in due passaggi: tenuti solo
+i due XGBoost — baseline/Ridge/Lasso/RF rimossi; il 18/06 rimossi anche Pipeline/scaler, la
+**sensibilità a SEG_LEN (150/250/500)** e il controfattuale eco/sport — i loro risultati, verificati
+nelle run precedenti, restano citati sotto.)*
 **Due scelte chiave:**
 1. **Segmento, non istante.** Predire il MAF *istantaneo* sarebbe quasi una tautologia fisica
    (terreno = rumore, controfattuale artificioso); il target a segmento `maf_per_km` lo risolve.
@@ -140,13 +141,13 @@ rimossi.)*
    tempo in elettrico"? Tre motivi tecnici in §5.1.)*
 **Numeri reali (run eseguito):** R² ~**0,76**; a dominare **stop_fraction** (~0,25) e velocità; il
 **terreno resta debole (~0,06)** a tutte le lunghezze di segmento → conferma il limite del dato.
-Output: `consumption_model.joblib`, `consumption_results.csv`.
+Output: nessun file salvato (sezione salvataggio rimossa il 18/06; i risultati vivono nel notebook).
 
-### NB3 — `03_unsupervised_context_and_styles.ipynb` (contesto stradale + stili di guida)
+### NB3 — `clustering.ipynb` (contesto stradale + stili di guida)
 **Parte A — tratti stradali:** celle spaziali (~11×8 m), filtro ≥50 passaggi, **StandardScaler** (con
 dimostrazione del fallimento senza), **Elbow + Silhouette**, **K-Means++**, heatmap, **PCA**, mappa
 Folium interattiva. Feature di clustering = **solo cinematica + geometria** (il consumo `maf_mean` è
-solo colonna *descrittiva*). Output: `road_segment_clusters.parquet`, `cluster_profile.csv`, mappe.
+solo colonna *descrittiva*). Output: `cluster_profile.csv`, `cluster_map.html`.
 **Parte B — stili di guida:** clustering dei **guidatori** (`VehId`) sulla sola **cinematica**
 (velocità/accel/soste, niente MAF → valida per tutti i powertrain), con heatmap, naming e **PCA**.
 *(Sfoltita il 17/06: il test **chi-quadro** stile×powertrain, la relazione **stile → consumo** ICE e il
@@ -281,9 +282,9 @@ studiati ma non più applicati qui.
 
 | File | Cosa |
 |---|---|
-| `01_data_prep_and_enrichment.ipynb` | preparazione + enrichment (input di tutti) |
-| `02_consumption_ecodriving.ipynb` | consumo a segmento, solo ICE |
-| `03_unsupervised_context_and_styles.ipynb` | tratti stradali + stili di guida |
+| `data prep.ipynb` | NB1 — preparazione + enrichment (input di tutti) |
+| `predizione consumo.ipynb` | NB2 — consumo a segmento, solo ICE |
+| `clustering.ipynb` | NB3 — tratti stradali + stili di guida |
 | `outputs/ved_enriched.parquet` | dataset consolidato + elevation + slope (input di tutti) |
 | `RELAZIONE_PROGETTO.md` | **questo file** — panoramica per l'esame |
 | `ANALISI_DATI_VED.md` | EDA completa del dataset (numeri reali) |
