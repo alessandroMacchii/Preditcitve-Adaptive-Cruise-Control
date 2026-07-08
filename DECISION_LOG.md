@@ -1,14 +1,4 @@
-# Decision Log — why X instead of Y
-
-> As required by the course submission, this log "goes back" to the very beginning
-> of the idea's design: it starts from the original idea (the orographic ACC, context of D1)
-> and follows every decision up to the current form of the project. Format of each entry:
-> **context → alternatives → decision → why → evidence**. The dates and numbers are the real ones
-> (verifiable in the git history and in `project context/`). The decisions are in chronological order:
-> read in sequence, they tell *why* the project has the form it has — and why the choice fell
-> on that option **and not another**.
-
----
+# Decision Log
 
 ## D1 — Reframe: from the "orographic ACC" to "energy + context" `2026-06-14`
 
@@ -78,47 +68,23 @@
   the planning scale of an ACC. **Empirical check**: sensitivity cell with
   SEG_LEN ∈ {150, 250, 500} → stable R² and terrain weight ~0.06 at all lengths (the choice
   does not condition the conclusions).
-- **Evidence.** `discussions.md` #23; the sensitivity cell was then removed in the
-  D11 pruning, the results remain documented.
+- **Evidence.** `discussions.md` #23; the sensitivity cell was later removed in the final notebook
+  pruning, the results remain documented.
 
-## D6 — XGBoost only (linear baselines and Random Forest removed) `2026-06-16`
+## D6 — Validation: temporal split per trip + GroupKFold per vehicle `2026-06-15`
 
-- **Context.** Which models to keep in the consumption notebook.
-- **Alternatives.** (a) The full suite (baseline, Ridge, Lasso, RF, XGBoost); (b) XGBoost only,
-  default + tuned (Optuna, GroupKFold).
-- **Decision.** (b), Alex's choice for notebook compactness.
-- **Why.** On tabular data with strong non-linearities (consumption vs speed U-shaped, speed×stop-and-go
-  interactions) gradient boosting is the correct prior; linear models capture only additive
-  effects without manual feature engineering. **Declared cost:** L1/L2 and RF leave the project;
-  a Lasso would remain useful only as an interpretable baseline (full trade-off analysis in
-  `discussions.md` #40–#41).
-- **Evidence.** `STATE.md` (history #5), commits `e6ebdbb`/`ce1ab41` (2026-06-16),
-  `discussions.md` #40–#41.
+- **Context.** How to honestly estimate the consumption model's performance.
+- **Alternatives.** (a) Random split per row/segment; (b) temporal split per trip + GroupKFold
+  per `VehId` in the tuning.
+- **Decision.** (b).
+- **Why.** A random split would put segments of the same trip (and vehicle) on both
+  sides → the model "recognizes" the trip/vehicle instead of learning the road, inflated metrics.
+  The temporal one simulates the real use (predicting the future); GroupKFold guarantees that no vehicle
+  is in both train and validation. Same anti-leakage philosophy as the rule on the
+  `next_*` features: never the future MAF among the inputs.
+- **Evidence.** NB2 split/tuning cells, `discussions.md` #22, `CLAUDE.md` (known traps).
 
-## D7 — Removal of notebook 4 (autoencoder/diagnostics) `2026-06-17`
-
-- **Context.** There was an NB4 with a Keras autoencoder for anomaly detection on the telemetry.
-- **Alternatives.** (a) Keep it; (b) remove it.
-- **Decision.** (b), Alex's choice.
-- **Why.** Orthogonal to the eco-driving/context core of the project: it lengthened the story without
-  strengthening the thesis. **Declared consequence:** deep learning and anomaly detection are no longer
-  covered by the project (they remain studied topics, not applied); `torch`/`keras` out of the
-  requirements.
-- **Evidence.** Commit `59eefca` (2026-06-17, "removed notebook 4"), `STATE.md` history #4.
-
-## D8 — Pruning of NB3 (removed t-SNE, chi-square, energy comparison) `2026-06-17`
-
-- **Context.** The clustering notebook contained accessory analyses (t-SNE, cluster↔EngineType
-  sanity check, chi-square test style×powertrain, style→consumption, energy comparison).
-- **Alternatives.** (a) Keep them all; (b) keep only the backbone (segment + style clustering,
-  heatmap, PCA, map).
-- **Decision.** (b), Alex's choice.
-- **Why.** Same principle as D6/D7: every cell must serve the thesis; the rest goes into the decision
-  log and the "future developments" list, not into the notebook. The results of the removed analyses remain
-  citable (e.g. engine-off-while-moving: ICE 0% / HEV 21% / PHEV 24%).
-- **Evidence.** Commits `bc5d08d`…`aed98a0` (2026-06-17), `STATE.md`, `discussions.md` #30–#39.
-
-## D9 — Clustering: K=4 for the segments, features kinematics+geometry only `2026-06-17`
+## D7 — Clustering: K=4 for the segments, features kinematics+geometry only `2026-06-17`
 
 - **Context.** How many clusters, and on which features, for the road-segment typing.
 - **Alternatives.** K from 2 to 10 (evaluated with Elbow + Silhouette); whether or not to include consumption
@@ -134,7 +100,7 @@
 - **Evidence.** `clustering.ipynb` (Elbow/Silhouette and "Final choice" cells), `discussions.md`
   #15–#16 and #39, `outputs/cluster_profile.csv` + `cluster_map.html`.
 
-## D10 — 30 m elevation grid: explored and CANCELLED `2026-06-17`
+## D8 — 30 m elevation grid: explored and CANCELLED `2026-06-17`
 
 - **Context.** The elevation is deduped to 3 decimals (~111 m); native SRTM goes down to ~30 m: was it
   worth redoing the cache at full resolution?
@@ -147,44 +113,13 @@
   sensible future development on hilly terrain.
 - **Evidence.** `discussions.md` #36 (with the numbers), `STATE.md`.
 
-## D11 — Final pruning and renaming of the notebooks `2026-06-18`
-
-- **Context.** Pre-exam polishing: the notebooks must tell the essential.
-- **Alternatives.** (a) Keep in NB2 the sklearn pipeline, SEG_LEN sensitivity, counterfactual,
-  saves; (b) reduce NB2 to the backbone (segmentation → features → split → XGBoost →
-  importance) and rename the notebooks with speaking names.
-- **Decision.** (b): notebooks renamed (`data prep.ipynb`, `consumption prediction.ipynb`,
-  `clustering.ipynb`); from NB2 removed Pipeline/ColumnTransformer/StandardScaler, SEG_LEN
-  sensitivity, the eco/sport counterfactual and the saving section.
-- **Why.** The scaler on XGBoost is irrelevant (tree model, invariant to monotone
-  transformations): removing it is legitimate and simplifies (the *concept* remains exam material, documented
-  in `discussions.md` #43). Sensitivity and counterfactual were already run and their results
-  documented (#23): in the final notebook they weighed down the narrative. **Declared cost:** NB2
-  no longer produces artifacts in `outputs/`; the results live in the executed notebook and in the documents.
-- **Evidence.** Working tree of June 18 (rename + diff), `discussions.md` #40–#43, `STATE.md`
-  updated on July 2.
-
-## D12 — Validation: temporal split per trip + GroupKFold per vehicle `2026-06-15`
-
-- **Context.** How to honestly estimate the consumption model's performance.
-- **Alternatives.** (a) Random split per row/segment; (b) temporal split per trip + GroupKFold
-  per `VehId` in the tuning.
-- **Decision.** (b).
-- **Why.** A random split would put segments of the same trip (and vehicle) on both
-  sides → the model "recognizes" the trip/vehicle instead of learning the road, inflated metrics.
-  The temporal one simulates the real use (predicting the future); GroupKFold guarantees that no vehicle
-  is in both train and validation. Same anti-leakage philosophy as the rule on the
-  `next_*` features: never the future MAF among the inputs.
-- **Evidence.** NB2 split/tuning cells, `discussions.md` #22, `CLAUDE.md` (known traps).
-
 ---
 
 ## How to read this log
 
 The decisions are not independent: D1 (reframe) generates D2 (dataset) and gives meaning to D3 (map-only) and
-D5 (segment); D6–D8 and D11 are the same editorial policy applied at different moments ("every
-cell must serve the thesis; what is removed stays documented"); D10 shows that even a **no**
-is a decision to track, with the numbers that justify it.
+D5 (segment); D6 (validation) is the anti-leakage discipline that keeps the consumption model honest;
+D8 (the cancelled 30 m grid) shows that even a **no** is a decision to track, with the numbers that justify it.
 
 In course terms: this log is the defense against **technical debt** in its
 original definition (Cunningham) — the misalignment between what is needed and what was built grows

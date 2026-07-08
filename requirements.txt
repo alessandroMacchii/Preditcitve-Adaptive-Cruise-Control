@@ -1,24 +1,19 @@
-# Core data science
 pandas>=2.0
 numpy>=1.24
-pyarrow>=14.0          # to read the parquet files
+pyarrow>=14.0          
 
-# Visualization
 matplotlib>=3.7
 seaborn>=0.12
 
-# Machine Learning
 scikit-learn>=1.3
 xgboost>=2.0
-optuna>=3.4            # Bayesian tuning
+optuna>=3.4
 
-# HTTP for the Open-Meteo Elevation API
+
 requests>=2.31
-truststore>=0.9          # SSL verification via the OS trust store (corporate proxy/antivirus)
+truststore>=0.9
 
-# Geographic visualization
-folium>=0.15           # interactive map (notebook 3)
+folium>=0.15         
 
-# Jupyter (if not already installed in the environment)
 jupyter>=1.0
 ipykernel>=6.25
