@@ -1,8 +1,8 @@
 # Decision Log
 
-## D1 — Reframe: from the "orographic ACC" to "energy + context" `2026-06-14`
+## D1 — Reframe: to "energy + context" `2026-06-14`
 
-- **Context.** Starting idea: a predictive ACC that exploits **orography** ("slow down before
+- **Context.** Starting idea: a predictive ACC ("slow down before
   the climb"). First notebooks built around slope.
 - **Alternatives.** (a) Insist on orography; (b) change dataset (see D2); (c) reframe
   the project around the signal the data actually contains.
